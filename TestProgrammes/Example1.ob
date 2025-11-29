@@ -1,0 +1,41 @@
+MODULE TypesDemo;
+
+VAR
+    i: INTEGER;
+    r: REAL;
+    b: BOOLEAN;
+    s: STRING;
+
+PROCEDURE IntToReal(x: INTEGER): REAL;
+BEGIN
+    RETURN x
+END IntToReal;
+
+PROCEDURE RealToInt(x: REAL): INTEGER;
+BEGIN
+    RETURN x
+END RealToInt;
+
+PROCEDURE BoolToString(val: BOOLEAN): STRING;
+BEGIN
+    IF val THEN
+        RETURN "true"
+    ELSE
+        RETURN "false"
+    END
+END BoolToString;
+
+BEGIN
+    i := 5;
+    r := 6.7;
+    b := (i < 10);
+    s := "Result: ";
+
+    r := IntToReal(i);
+    i := RealToInt(r);
+    s := BoolToString(b);
+
+    WRITE(i);
+    WRITE(r);
+    WRITE(s)
+END TypesDemo.

@@ -1,0 +1,40 @@
+MODULE ControlDemo;
+
+VAR
+    n: INTEGER;
+    result: INTEGER;
+
+PROCEDURE Outer(x: INTEGER): INTEGER;
+VAR acc: INTEGER;
+
+    PROCEDURE Inner(y: INTEGER): INTEGER;
+    BEGIN
+        RETURN y * 2
+    END Inner;
+
+BEGIN
+    acc := 0;
+    WHILE x > 0 DO
+        acc := acc + Inner(x);
+        x := x - 1
+    END;
+    RETURN acc
+END Outer;
+
+BEGIN
+    n := 5;
+    IF n >= 5 THEN
+        result := Outer(n)
+    ELSE
+        result := 0
+    END;
+
+    CASE n OF
+        1: WRITE("n is one");
+        5: WRITE("n is five")
+    ELSE
+        WRITE("other value")
+    END;
+
+    WRITE(result)
+END ControlDemo.
