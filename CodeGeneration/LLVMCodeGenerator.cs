@@ -224,10 +224,7 @@ namespace Compiler.CodeGeneration
             if (currentReturnBlock.Handle != IntPtr.Zero)
             {
                 builder.BuildBr(currentReturnBlock);
-
-                // Create new block for any code after return (unreachable)
-                var afterReturn = currentFunction.AppendBasicBlock("after_return");
-                builder.PositionAtEnd(afterReturn);
+                // No need for after_return block - the function ends here!
             }
         }
 

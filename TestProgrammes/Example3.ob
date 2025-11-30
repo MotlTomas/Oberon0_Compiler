@@ -30,8 +30,8 @@ BEGIN
     END;
 
     CASE n OF
-        1: WRITE("n is one");
-        5: WRITE("n is five")
+        1: WRITE("n is one")
+|       5: WRITE("n is five")
     ELSE
         WRITE("other value")
     END;

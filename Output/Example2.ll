@@ -44,15 +44,12 @@ entry:
   %load4 = load i32, i32* %sum
   store i32 %load4, i32* %retval
   br label %return
-
-return:                                           ; preds = %entry
-
-after_return:                                     ; No predecessors!
-  unreachable
   %load5 = load [10 x [10 x i32]], [10 x [10 x i32]]* @mat
   %1 = call void ([10 x [10 x i32]]) @FillMatrix([10 x [10 x i32]] %load5)
   %load6 = load [10 x [10 x i32]], [10 x [10 x i32]]* @mat
   store [10 x [10 x i32]] %load6, [10 x [10 x i32]]* @res
+
+return:                                           ; preds = %entry
 }
 
 define i32 @main() {
