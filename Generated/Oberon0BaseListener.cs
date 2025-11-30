@@ -336,6 +336,18 @@ public partial class Oberon0BaseListener : IOberon0Listener {
 	/// <param name="context">The parse tree.</param>
 	public virtual void ExitIoStatement([NotNull] Oberon0Parser.IoStatementContext context) { }
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="Oberon0Parser.returnStatement"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void EnterReturnStatement([NotNull] Oberon0Parser.ReturnStatementContext context) { }
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="Oberon0Parser.returnStatement"/>.
+	/// <para>The default implementation does nothing.</para>
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	public virtual void ExitReturnStatement([NotNull] Oberon0Parser.ReturnStatementContext context) { }
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="Oberon0Parser.expression"/>.
 	/// <para>The default implementation does nothing.</para>
 	/// </summary>

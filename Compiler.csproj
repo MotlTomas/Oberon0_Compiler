@@ -5,10 +5,17 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Antlr4.Runtime.Standard" Version="4.13.1" />
+    <PackageReference Include="libLLVM" Version="20.1.2" />
+    <PackageReference Include="libLLVM.runtime.win-x64" Version="20.1.2" />
+    <PackageReference Include="Llvm.NET.Interop" Version="8.0.1" />
+    <PackageReference Include="LLVMSharp" Version="20.1.2" />
   </ItemGroup>
 
   <ItemGroup>

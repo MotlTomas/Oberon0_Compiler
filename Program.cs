@@ -4,6 +4,7 @@ using System.Linq;
 using Antlr4.Runtime;
 using Antlr4.Runtime.Tree;
 using Compiler.Semantics;
+using Compiler.CodeGeneration;
 
 class Program
 {
@@ -13,6 +14,12 @@ class Program
         // Locate the folder with test code files
         string TestProgrammesFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "TestProgrammes");
         TestProgrammesFolder = Path.GetFullPath(TestProgrammesFolder);
+
+        // Create output folder for compiled executables
+        string OutputFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Output");
+        OutputFolder = Path.GetFullPath(OutputFolder);
+        if (!Directory.Exists(OutputFolder))
+            Directory.CreateDirectory(OutputFolder);
 
         // Create the folder if it doesn't exist
         if (!Directory.Exists(TestProgrammesFolder))
@@ -39,22 +46,29 @@ class Program
         foreach (var filePath in testFiles)
         {
             string fileName = Path.GetFileName(filePath);
-            Console.WriteLine($"Testing file: {fileName}");
+            string baseName = Path.GetFileNameWithoutExtension(filePath);
+
+            Console.WriteLine($"\n{'=',70}");
+            Console.WriteLine($"Processing file: {fileName}");
+            Console.WriteLine($"{'=',70}\n");
+
             try
             {
                 string code = File.ReadAllText(filePath);
-                Console.WriteLine("\n--- Test code ---\n" + code);
+                Console.WriteLine("--- Source Code ---\n" + code);
 
                 var result = ParseCode(code);
-                Console.WriteLine($"\nSyntax valid: {result.IsValid}");
+                Console.WriteLine($"\n✓ Syntax valid: {result.IsValid}");
 
-                if (result.IsValid)
-                    Console.WriteLine("Parse successful");
-                else
-                    Console.WriteLine("Parse failed (syntax errors found)");
+                if (!result.IsValid)
+                {
+                    Console.WriteLine("✗ Parse failed (syntax errors found)");
+                    foreach (var err in result.Errors)
+                        Console.WriteLine($"  ERROR: {err}");
+                    continue;
+                }
 
-                Console.WriteLine($"Variables: {string.Join(", ", result.Variables)}");
-                Console.WriteLine($"\nParse tree:\n{result.ParseTree}");
+                Console.WriteLine($"✓ Variables found: {string.Join(", ", result.Variables)}");
 
                 // Run semantic analysis on the parse tree
                 var walker = new ParseTreeWalker();
@@ -63,24 +77,61 @@ class Program
 
                 if (semanticAnalyzer.Errors.Any())
                 {
-                    Console.WriteLine("Semantic errors found:");
+                    Console.WriteLine("\n✗ Semantic errors found:");
                     foreach (var err in semanticAnalyzer.Errors)
-                        Console.WriteLine("  " + err);
+                        Console.WriteLine($"  ERROR: {err}");
+                    continue;
+                }
+
+                Console.WriteLine("✓ Semantic analysis successful");
+
+                // Generate LLVM IR
+                Console.WriteLine("\n--- Generating LLVM IR ---");
+                var moduleContext = ((Oberon0Parser.FileContext)result.Tree).module();
+                string moduleName = moduleContext.ID(0).GetText();
+
+                var codeGenerator = new LLVMCodeGenerator(moduleName);
+                walker.Walk(codeGenerator, result.Tree);
+                codeGenerator.CreateMainFunction(moduleContext);
+
+                // Save LLVM IR to file
+                string llvmFile = Path.Combine(OutputFolder, $"{baseName}.ll");
+                codeGenerator.WriteToFile(llvmFile);
+                Console.WriteLine($"✓ LLVM IR written to: {llvmFile}");
+
+                // Display generated IR
+                Console.WriteLine("\n--- Generated LLVM IR (preview) ---");
+                string ir = codeGenerator.GetIR();
+                var irLines = ir.Split('\n').Take(30);
+                foreach (var line in irLines)
+                    Console.WriteLine(line);
+                if (ir.Split('\n').Length > 30)
+                    Console.WriteLine("... (truncated) ...");
+
+                // Compile to executable using clang
+                Console.WriteLine("\n--- Compiling to executable ---");
+                string exeFile = Path.Combine(OutputFolder, baseName);
+                if (CompileToExecutable(llvmFile, exeFile))
+                {
+                    Console.WriteLine($"✓ Executable created: {exeFile}");
+                    Console.WriteLine($"\nRun with: {exeFile}");
                 }
                 else
                 {
-                    Console.WriteLine("Semantic analysis successful.");
+                    Console.WriteLine("✗ Compilation failed (is clang installed?)");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"\nError reading or parsing file: {ex.Message}");
+                Console.WriteLine($"\n✗ Error: {ex.Message}");
+                Console.WriteLine(ex.StackTrace);
             }
 
-            Console.WriteLine($"\n{'-',60}\n");
+            Console.WriteLine($"\n{'-',70}\n");
         }
 
-        Console.WriteLine("\nAll tests completed!");
+        Console.WriteLine("\n✓ All files processed!");
+        Console.WriteLine($"\nCompiled outputs are in: {OutputFolder}");
     }
 
     // Parses Oberon code, tracks variables, builds a parse tree
@@ -110,6 +161,44 @@ class Program
             Errors = errorListener.Errors,
             Tree = tree
         };
+    }
+
+    // Compile LLVM IR to native executable using clang
+    static bool CompileToExecutable(string llvmFile, string outputFile)
+    {
+        try
+        {
+            var process = new System.Diagnostics.Process
+            {
+                StartInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "clang",
+                    Arguments = $"\"{llvmFile}\" -o \"{outputFile}\" -Wno-override-module",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                }
+            };
+
+            process.Start();
+            string output = process.StandardOutput.ReadToEnd();
+            string error = process.StandardError.ReadToEnd();
+            process.WaitForExit();
+
+            if (process.ExitCode != 0)
+            {
+                Console.WriteLine($"Clang error: {error}");
+                return false;
+            }
+
+            return File.Exists(outputFile);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Compilation error: {ex.Message}");
+            return false;
+        }
     }
 }
 

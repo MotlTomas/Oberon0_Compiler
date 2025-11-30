@@ -281,6 +281,16 @@ public interface IOberon0Listener : IParseTreeListener {
 	/// <param name="context">The parse tree.</param>
 	void ExitIoStatement([NotNull] Oberon0Parser.IoStatementContext context);
 	/// <summary>
+	/// Enter a parse tree produced by <see cref="Oberon0Parser.returnStatement"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void EnterReturnStatement([NotNull] Oberon0Parser.ReturnStatementContext context);
+	/// <summary>
+	/// Exit a parse tree produced by <see cref="Oberon0Parser.returnStatement"/>.
+	/// </summary>
+	/// <param name="context">The parse tree.</param>
+	void ExitReturnStatement([NotNull] Oberon0Parser.ReturnStatementContext context);
+	/// <summary>
 	/// Enter a parse tree produced by <see cref="Oberon0Parser.expression"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>

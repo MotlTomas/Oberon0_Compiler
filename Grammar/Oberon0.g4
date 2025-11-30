@@ -76,9 +76,9 @@ statement
     | loopStatement
     | switchStatement
     | ioStatement
+    | returnStatement 
     | 'CONTINUE'
     | 'BREAK'
-    | 'RETURN' expression?
     ;
 
 assignment
@@ -129,6 +129,8 @@ ioStatement
     | 'WRITELN' '(' expression? ')'
     | 'READ' '(' designator ')'
     ;
+
+returnStatement: 'RETURN' expression?;
 
 expression
     : simpleExpression (('=' | '#' | '<' | '<=' | '>' | '>=') simpleExpression)?
