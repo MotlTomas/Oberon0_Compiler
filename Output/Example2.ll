@@ -1,62 +1,89 @@
-; ModuleID = 'ArrayDemo'
-source_filename = "ArrayDemo"
-
-@mat = global [10 x [10 x i32]] zeroinitializer
-@res = global [10 x [10 x i32]] zeroinitializer
+; Module: ArrayDemo
+target triple = "x86_64-pc-linux-gnu"
 
 declare i32 @printf(i8*, ...)
-
 declare i32 @scanf(i8*, ...)
+declare i32 @puts(i8*)
 
-define void @FillMatrix([10 x [10 x i32]]) {
-entry:
-  %a = alloca [10 x [10 x i32]]
-  store [10 x [10 x i32]] %0, [10 x [10 x i32]]* %a
-  %i = alloca i32
-  %j = alloca i32
-  %load = load i32, i32* %i
-  %mul = mul i32 %load, 10
-  %load1 = load i32, i32* %j
-  %add = add i32 %mul, %load1
-  %load2 = load i32, i32* %i
-  %load3 = load i32, i32* %j
-  %arrayptr = getelementptr [10 x [10 x i32]], [10 x [10 x i32]]* %a, i32 0, i32 %load2, i32 %load3
-  store i32 %add, i32* %arrayptr
+@.int_fmt = private unnamed_addr constant [5 x i8] c"%lld\00"
+@.real_fmt = private unnamed_addr constant [4 x i8] c"%lf\00"
+@.str_fmt = private unnamed_addr constant [3 x i8] c"%s\00"
+@.newline = private unnamed_addr constant [2 x i8] c"\0A\00"
+@.scan_int = private unnamed_addr constant [5 x i8] c"%lld\00"
+@.scan_real = private unnamed_addr constant [4 x i8] c"%lf\00"
+
+@mat = global [2 x [2 x i64]] zeroinitializer
+@res = global [2 x [2 x i64]] zeroinitializer
+
+define void @FillMatrix([2 x [2 x i64]]* %a) {
+  entry:
+  %i = alloca i64
+  %j = alloca i64
+  store i64 0, i64* %i
+  br label %for.cond0
+for.cond0:
+  %t0 = load i64, i64* %i
+  %t1 = icmp sle i64 %t0, 1
+  br i1 %t1, label %for.body1, label %for.end3
+for.body1:
+  store i64 0, i64* %j
+  br label %for.cond4
+for.cond4:
+  %t2 = load i64, i64* %j
+  %t3 = icmp sle i64 %t2, 1
+  br i1 %t3, label %for.body5, label %for.end7
+for.body5:
+  %t4 = load i64, i64* %i
+  %t5 = mul i64 %t4, 10
+  %t6 = load i64, i64* %j
+  %t7 = add i64 %t5, %t6
+  %t9 = load i64, i64* %i
+  %t10 = load i64, i64* %j
+  %t11 = getelementptr [2 x [2 x i64]], [2 x [2 x i64]]* %a, i64 0, i64 %t9, i64 %t10
+  store [2 x [2 x i64]] %t7, [2 x [2 x i64]]* %t11
   ret void
 }
 
-define i32 @SumMatrix([10 x [10 x i32]]) {
-entry:
-  %retval = alloca i32
-  %a = alloca [10 x [10 x i32]]
-  store [10 x [10 x i32]] %0, [10 x [10 x i32]]* %a
-  %i = alloca i32
-  %j = alloca i32
-  %sum = alloca i32
-  store i32 0, i32* %sum
-  %load = load i32, i32* %sum
-  %load1 = load i32, i32* %i
-  %load2 = load i32, i32* %j
-  %arrayptr = getelementptr [10 x [10 x i32]], [10 x [10 x i32]]* %a, i32 0, i32 %load1, i32 %load2
-  %load3 = load i32, i32* %arrayptr
-  %add = add i32 %load, %load3
-  store i32 %add, i32* %sum
-  %load4 = load i32, i32* %sum
-  store i32 %load4, i32* %retval
-  br label %return
-  %load5 = load [10 x [10 x i32]], [10 x [10 x i32]]* @mat
-  %1 = call void ([10 x [10 x i32]]) @FillMatrix([10 x [10 x i32]] %load5)
-  %load6 = load [10 x [10 x i32]], [10 x [10 x i32]]* @mat
-  store [10 x [10 x i32]] %load6, [10 x [10 x i32]]* @res
-
-return:                                           ; preds = %entry
+define void @SumMatrix([2 x [2 x i64]] %a) {
+  entry:
+  %a.addr = alloca [2 x [2 x i64]]
+  store [2 x [2 x i64]] %a, [2 x [2 x i64]]* %a.addr
+  %i = alloca i64
+  %j = alloca i64
+  %sum = alloca i64
+  store i64 0, i64* %sum
+  store i64 0, i64* %i
+  br label %for.cond8
+for.cond8:
+  %t12 = load i64, i64* %i
+  %t13 = icmp sle i64 %t12, 1
+  br i1 %t13, label %for.body9, label %for.end11
+for.body9:
+  store i64 0, i64* %j
+  br label %for.cond12
+for.cond12:
+  %t14 = load i64, i64* %j
+  %t15 = icmp sle i64 %t14, 1
+  br i1 %t15, label %for.body13, label %for.end15
+for.body13:
+  %t16 = load i64, i64* %sum
+  %t17 = load i64, i64* %i
+  %t18 = load i64, i64* %j
+  %t19 = getelementptr [2 x [2 x i64]], [2 x [2 x i64]]* %a.addr, i64 0, i64 %t17, i64 %t18
+  %t20 = load [2 x [2 x i64]], [2 x [2 x i64]]* %t19
+  %t22 = add i64 %t16, %t20
+  store i64 %t22, i64* %sum
+  %t23 = load i64, i64* %sum
+  ret void %t23
+  ret void
 }
+  %t25 = load [2 x [2 x i64]], [2 x [2 x i64]]* @mat
+  call void @FillMatrix([2 x [2 x i64]]* %t25)
+  %t26 = load [2 x [2 x i64]], [2 x [2 x i64]]* @mat
+  store [2 x [2 x i64]] %t26, [2 x [2 x i64]]* @res
 
+; Main entry point
 define i32 @main() {
 entry:
-  %load = load [10 x [10 x i32]], [10 x [10 x i32]]* @mat
-  %0 = call void ([10 x [10 x i32]]) @FillMatrix([10 x [10 x i32]] %load)
-  %load1 = load [10 x [10 x i32]], [10 x [10 x i32]]* @mat
-  store [10 x [10 x i32]] %load1, [10 x [10 x i32]]* @res
   ret i32 0
 }

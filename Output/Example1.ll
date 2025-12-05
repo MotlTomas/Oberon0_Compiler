@@ -1,95 +1,79 @@
-; ModuleID = 'TypesDemo'
-source_filename = "TypesDemo"
-
-@i = global i32 0
-@r = global double 0.000000e+00
-@b = global i1 false
-@s = global i8* null
-@str = private unnamed_addr constant [5 x i8] c"true\00", align 1
-@str.1 = private unnamed_addr constant [6 x i8] c"false\00", align 1
-@str.2 = private unnamed_addr constant [9 x i8] c"Result: \00", align 1
-@str.3 = private unnamed_addr constant [9 x i8] c"Result: \00", align 1
+; Module: TypesDemo
+target triple = "x86_64-pc-linux-gnu"
 
 declare i32 @printf(i8*, ...)
-
 declare i32 @scanf(i8*, ...)
+declare i32 @puts(i8*)
 
-define double @IntToReal(i32) {
-entry:
-  %retval = alloca double
-  %x = alloca i32
-  store i32 %0, i32* %x
-  %load = load i32, i32* %x
-  store i32 %load, double* %retval
-  br label %return
+@.int_fmt = private unnamed_addr constant [5 x i8] c"%lld\00"
+@.real_fmt = private unnamed_addr constant [4 x i8] c"%lf\00"
+@.str_fmt = private unnamed_addr constant [3 x i8] c"%s\00"
+@.newline = private unnamed_addr constant [2 x i8] c"\0A\00"
+@.scan_int = private unnamed_addr constant [5 x i8] c"%lld\00"
+@.scan_real = private unnamed_addr constant [4 x i8] c"%lf\00"
 
-return:                                           ; preds = %entry
+@i = global i64 zeroinitializer
+@r = global double zeroinitializer
+@b = global i1 zeroinitializer
+@s = global i8* zeroinitializer
+
+define void @IntToReal(i64 %x) {
+  entry:
+  %x.addr = alloca i64
+  store i64 %x, i64* %x.addr
+  %t0 = load i64, i64* %x.addr
+  ret void %t0
+  ret void
 }
 
-define i32 @RealToInt(double) {
-entry:
-  %retval = alloca i32
-  %x = alloca double
-  store double %0, double* %x
-  %load = load double, double* %x
-  store double %load, i32* %retval
-  br label %return
-
-return:                                           ; preds = %entry
+define void @RealToInt(double %x) {
+  entry:
+  %x.addr = alloca double
+  store double %x, double* %x.addr
+  %t2 = load double, double* %x.addr
+  ret void %t2
+  ret void
 }
 
-define i8* @BoolToString(i1) {
-entry:
-  %retval = alloca i8*
-  %val = alloca i1
-  store i1 %0, i1* %val
-  %load = load i1, i1* %val
-  br i1 %load, label %if.then, label %if.else
-
-return:                                           ; preds = %if.then, %if.then
-
-if.then:                                          ; preds = %entry
-  store i8* getelementptr inbounds ([5 x i8], [5 x i8]* @str, i32 0, i32 0), i8** %retval
-  br label %return
-  store i8* getelementptr inbounds ([6 x i8], [6 x i8]* @str.1, i32 0, i32 0), i8** %retval
-  br label %return
-  store i32 5, i32* @i
-  store double 6.700000e+00, double* @r
-  %load1 = load i32, i32* @i
-  %cmplt = icmp slt i32 %load1, 10
-  store i1 %cmplt, i1* @b
-  store i8* getelementptr inbounds ([9 x i8], [9 x i8]* @str.2, i32 0, i32 0), i8** @s
-  %load2 = load i32, i32* @i
-  %call = call double (i32) @IntToReal(i32 %load2)
-  store double (i32) %call, double* @r
-  %load3 = load double, double* @r
-  %call4 = call i32 (double) @RealToInt(double %load3)
-  store i32 (double) %call4, i32* @i
-  %load5 = load i1, i1* @b
-  %call6 = call i8* (i1) @BoolToString(i1 %load5)
-  store i8* (i1) %call6, i8** @s
-
-if.merge:                                         ; No predecessors!
-
-if.else:                                          ; preds = %entry
+define void @BoolToString(i1 %val) {
+  entry:
+  %val.addr = alloca i1
+  store i1 %val, i1* %val.addr
+  %t4 = load i1, i1* %val.addr
+  br i1 %t4, label %if.then0, label %if.else1
+if.then0:
+@.str0 = private unnamed_addr constant [5 x i8] c"true\00"
+  %t5 = getelementptr [5 x i8], [5 x i8]* @.str0, i32 0, i32 0
+  ret void %t5
+@.str1 = private unnamed_addr constant [6 x i8] c"false\00"
+  %t7 = getelementptr [6 x i8], [6 x i8]* @.str1, i32 0, i32 0
+  ret void %t7
+  br label %if.end3
+if.else4:
+  br label %if.end3
+if.end3:
+  ret void
 }
+  store i64 5, i64* @i
+  store double 6.7, double* @r
+  %t9 = load i64, i64* @i
+  %t10 = icmp slt i64 %t9, 10
+  store i1 %t10, i1* @b
+@.str2 = private unnamed_addr constant [9 x i8] c"Result: \00"
+  %t11 = getelementptr [9 x i8], [9 x i8]* @.str2, i32 0, i32 0
+  store i8* %t11, i8** @s
+  %t12 = load i64, i64* @i
+  %t13 = call void @IntToReal(i64 %t12)
+  store double %t13, double* @r
+  %t15 = load double, double* @r
+  %t16 = call void @RealToInt(double %t15)
+  store i64 %t16, i64* @i
+  %t18 = load i1, i1* @b
+  %t19 = call void @BoolToString(i1 %t18)
+  store i8* %t19, i8** @s
 
+; Main entry point
 define i32 @main() {
 entry:
-  store i32 5, i32* @i
-  store double 6.700000e+00, double* @r
-  %load = load i32, i32* @i
-  %cmplt = icmp slt i32 %load, 10
-  store i1 %cmplt, i1* @b
-  store i8* getelementptr inbounds ([9 x i8], [9 x i8]* @str.3, i32 0, i32 0), i8** @s
-  %load1 = load i32, i32* @i
-  %call = call double (i32) @IntToReal(i32 %load1)
-  store double (i32) %call, double* @r
-  %load2 = load double, double* @r
-  %call3 = call i32 (double) @RealToInt(double %load2)
-  store i32 (double) %call3, i32* @i
-  %load4 = load i1, i1* @b
-  %call5 = call i8* (i1) @BoolToString(i1 %load4)
-  store i8* (i1) %call5, i8** @s
   ret i32 0
 }
