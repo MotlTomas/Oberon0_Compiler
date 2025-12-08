@@ -1,14 +1,15 @@
-﻿using System;
+﻿using Antlr4.Runtime;
+using Antlr4.Runtime.Tree;
+using Compiler.CodeGeneration;
+using Compiler.Semantics;
+using System;
 using System.IO;
 using System.Linq;
-using Antlr4.Runtime;
-using Antlr4.Runtime.Tree;
-using Compiler.Semantics;
-using Compiler.CodeGeneration;
+using System.Runtime.InteropServices;
 
 class Program
 {
-    // Application entry: process all test Oberon files in the test directory
+    // Application entry using Visitor pattern
     static void Main(string[] args)
     {
         // Locate the folder with test code files
@@ -70,38 +71,37 @@ class Program
 
                 Console.WriteLine($"✓ Variables found: {string.Join(", ", result.Variables)}");
 
-                // Run semantic analysis on the parse tree
-                var walker = new ParseTreeWalker();
-                var semanticAnalyzer = new SemanticAnalyzer();
-                walker.Walk(semanticAnalyzer, result.Tree);
+                // Run semantic analysis using VISITOR pattern
+                var semanticVisitor = new SemanticVisitor();
+                semanticVisitor.Visit(result.Tree);
 
-                if (semanticAnalyzer.Errors.Any())
+                if (semanticVisitor.Errors.Any())
                 {
                     Console.WriteLine("\n✗ Semantic errors found:");
-                    foreach (var err in semanticAnalyzer.Errors)
+                    foreach (var err in semanticVisitor.Errors)
                         Console.WriteLine($"  ERROR: {err}");
                     continue;
                 }
 
                 Console.WriteLine("✓ Semantic analysis successful");
 
-                // Generate LLVM IR
+                // Generate LLVM IR using VISITOR pattern
                 Console.WriteLine("\n--- Generating LLVM IR ---");
                 var moduleContext = ((Oberon0Parser.FileContext)result.Tree).module();
                 string moduleName = moduleContext.ID(0).GetText();
 
-                var codeGenerator = new LLVMCodeGenerator(moduleName);
-                walker.Walk(codeGenerator, result.Tree);
-                codeGenerator.CreateMainFunction(moduleContext);
+                var codeVisitor = new LLVMCodeVisitor(moduleName);
+                codeVisitor.Visit(result.Tree);
+                codeVisitor.CreateMainFunction();
 
                 // Save LLVM IR to file
                 string llvmFile = Path.Combine(OutputFolder, $"{baseName}.ll");
-                codeGenerator.WriteToFile(llvmFile);
+                codeVisitor.WriteToFile(llvmFile);
                 Console.WriteLine($"✓ LLVM IR written to: {llvmFile}");
 
                 // Display generated IR
                 Console.WriteLine("\n--- Generated LLVM IR (preview) ---");
-                string ir = codeGenerator.GetIR();
+                string ir = codeVisitor.GetIR();
                 var irLines = ir.Split('\n').Take(30);
                 foreach (var line in irLines)
                     Console.WriteLine(line);
@@ -110,7 +110,8 @@ class Program
 
                 // Compile to executable using clang
                 Console.WriteLine("\n--- Compiling to executable ---");
-                string exeFile = Path.Combine(OutputFolder, baseName);
+                string exeExtension = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "";
+                string exeFile = Path.Combine(OutputFolder, baseName + exeExtension);
                 if (CompileToExecutable(llvmFile, exeFile))
                 {
                     Console.WriteLine($"✓ Executable created: {exeFile}");
@@ -134,7 +135,7 @@ class Program
         Console.WriteLine($"\nCompiled outputs are in: {OutputFolder}");
     }
 
-    // Parses Oberon code, tracks variables, builds a parse tree
+    // Parses Oberon code using Visitor pattern
     static ParseResult ParseCode(string input)
     {
         var inputStream = new AntlrInputStream(input);
@@ -147,11 +148,12 @@ class Program
         parser.AddErrorListener(errorListener);
 
         var variableTracker = new VariableTracker();
-        var listener = new Oberon0VariableListener(variableTracker);
+        var visitor = new Oberon0VariableVisitor(variableTracker);
 
         var tree = parser.file();
-        var walker = new ParseTreeWalker();
-        walker.Walk(listener, tree);
+        
+        // Use visitor pattern for tree traversal
+        visitor.Visit(tree);
 
         return new ParseResult
         {
@@ -200,14 +202,4 @@ class Program
             return false;
         }
     }
-}
-
-// Structure for holding parse results and analysis artifacts
-class ParseResult
-{
-    public bool IsValid { get; set; }
-    public System.Collections.Generic.List<string> Variables { get; set; }
-    public string ParseTree { get; set; }
-    public System.Collections.Generic.List<string> Errors { get; set; }
-    public ParserRuleContext Tree { get; set; } // Used for semantic analysis
 }

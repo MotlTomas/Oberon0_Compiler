@@ -137,6 +137,12 @@ public partial class Oberon0Parser : Parser {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitFile(this);
 		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitFile(this);
+			else return visitor.VisitChildren(this);
+		}
 	}
 
 	[RuleVersion(0)]
@@ -188,6 +194,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitModule(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitModule(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -277,6 +289,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitDeclarations(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitDeclarations(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -415,6 +433,12 @@ public partial class Oberon0Parser : Parser {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitConstDecl(this);
 		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitConstDecl(this);
+			else return visitor.VisitChildren(this);
+		}
 	}
 
 	[RuleVersion(0)]
@@ -462,6 +486,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitTypeDecl(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitTypeDecl(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -513,6 +543,12 @@ public partial class Oberon0Parser : Parser {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitVarDecl(this);
 		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitVarDecl(this);
+			else return visitor.VisitChildren(this);
+		}
 	}
 
 	[RuleVersion(0)]
@@ -560,6 +596,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitIdentList(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitIdentList(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -633,6 +675,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitType(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitType(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -792,6 +840,12 @@ public partial class Oberon0Parser : Parser {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitFieldDecl(this);
 		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitFieldDecl(this);
+			else return visitor.VisitChildren(this);
+		}
 	}
 
 	[RuleVersion(0)]
@@ -841,6 +895,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitProcDecl(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitProcDecl(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -892,6 +952,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitProcHeading(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitProcHeading(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -964,6 +1030,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitProcBody(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitProcBody(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -1048,6 +1120,12 @@ public partial class Oberon0Parser : Parser {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitFormalParameters(this);
 		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitFormalParameters(this);
+			else return visitor.VisitChildren(this);
+		}
 	}
 
 	[RuleVersion(0)]
@@ -1123,6 +1201,12 @@ public partial class Oberon0Parser : Parser {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitFpSection(this);
 		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitFpSection(this);
+			else return visitor.VisitChildren(this);
+		}
 	}
 
 	[RuleVersion(0)]
@@ -1183,6 +1267,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitStatementSequence(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitStatementSequence(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -1274,6 +1364,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitStatement(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitStatement(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -1383,6 +1479,12 @@ public partial class Oberon0Parser : Parser {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitAssignment(this);
 		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitAssignment(this);
+			else return visitor.VisitChildren(this);
+		}
 	}
 
 	[RuleVersion(0)]
@@ -1433,6 +1535,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitDesignator(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitDesignator(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -1492,6 +1600,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitSelector(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitSelector(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -1570,6 +1684,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitProcedureCall(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitProcedureCall(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -1651,6 +1771,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitIfStatement(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitIfStatement(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -1742,6 +1868,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitLoopStatement(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitLoopStatement(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -1855,6 +1987,12 @@ public partial class Oberon0Parser : Parser {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitSwitchStatement(this);
 		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitSwitchStatement(this);
+			else return visitor.VisitChildren(this);
+		}
 	}
 
 	[RuleVersion(0)]
@@ -1941,6 +2079,12 @@ public partial class Oberon0Parser : Parser {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitCaseBranch(this);
 		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitCaseBranch(this);
+			else return visitor.VisitChildren(this);
+		}
 	}
 
 	[RuleVersion(0)]
@@ -2007,6 +2151,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitIoStatement(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitIoStatement(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -2100,6 +2250,12 @@ public partial class Oberon0Parser : Parser {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitReturnStatement(this);
 		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitReturnStatement(this);
+			else return visitor.VisitChildren(this);
+		}
 	}
 
 	[RuleVersion(0)]
@@ -2156,6 +2312,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitExpression(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitExpression(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -2222,6 +2384,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitSimpleExpression(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitSimpleExpression(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -2310,6 +2478,12 @@ public partial class Oberon0Parser : Parser {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitTerm(this);
 		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitTerm(this);
+			else return visitor.VisitChildren(this);
+		}
 	}
 
 	[RuleVersion(0)]
@@ -2388,6 +2562,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitFactor(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitFactor(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 
@@ -2497,6 +2677,12 @@ public partial class Oberon0Parser : Parser {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitExpressionList(this);
 		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitExpressionList(this);
+			else return visitor.VisitChildren(this);
+		}
 	}
 
 	[RuleVersion(0)]
@@ -2557,6 +2743,12 @@ public partial class Oberon0Parser : Parser {
 		public override void ExitRule(IParseTreeListener listener) {
 			IOberon0Listener typedListener = listener as IOberon0Listener;
 			if (typedListener != null) typedListener.ExitLiteral(this);
+		}
+		[System.Diagnostics.DebuggerNonUserCode]
+		public override TResult Accept<TResult>(IParseTreeVisitor<TResult> visitor) {
+			IOberon0Visitor<TResult> typedVisitor = visitor as IOberon0Visitor<TResult>;
+			if (typedVisitor != null) return typedVisitor.VisitLiteral(this);
+			else return visitor.VisitChildren(this);
 		}
 	}
 

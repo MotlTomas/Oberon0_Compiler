@@ -1,10 +1,13 @@
-﻿using System.Collections.Generic;
-using Antlr4.Runtime.Tree;
+using System.Collections.Generic;
+using Antlr4.Runtime.Misc;
 
 namespace Compiler.Semantics
 {
-    // Semantic analyzer for Oberon0 subset
-    public class SemanticAnalyzer : Oberon0BaseListener
+    /// <summary>
+    /// Semantic analyzer using Visitor pattern instead of Listener pattern
+    /// Provides better control flow and ability to return values from visits
+    /// </summary>
+    public class SemanticVisitor : Oberon0BaseVisitor<object>
     {
         // Global symbol table
         private readonly SymbolTable globalSymbols = new();
@@ -18,63 +21,77 @@ namespace Compiler.Semantics
         // Collected semantic errors
         public List<string> Errors { get; } = new();
 
-        // Initialize scopes
-        public override void EnterModule(Oberon0Parser.ModuleContext ctx)
+        // Visit module - initialize scopes
+        public override object VisitModule([NotNull] Oberon0Parser.ModuleContext context)
         {
             scopes.Clear();
             scopes.Add(globalSymbols);
+            
+            // Continue visiting children
+            return base.VisitModule(context);
         }
 
-        // Collect user-defined types, store array element types
-        public override void EnterTypeDecl(Oberon0Parser.TypeDeclContext ctx)
+        // Visit type declaration - collect user-defined types
+        public override object VisitTypeDecl([NotNull] Oberon0Parser.TypeDeclContext context)
         {
-            string typeName = ctx.ID().GetText();
-            var typeNode = ctx.type();
+            string typeName = context.ID().GetText();
+            var typeNode = context.type();
             if (typeNode.GetChild(0).GetText() == "ARRAY")
             {
                 var elementType = typeNode.type().GetText();
                 arrayTypes[typeName] = elementType;
             }
+            
+            return base.VisitTypeDecl(context);
         }
 
-        // Track variable declarations, check for redeclarations
-        public override void EnterVarDecl(Oberon0Parser.VarDeclContext ctx)
+        // Visit variable declaration - track variables and check for redeclarations
+        public override object VisitVarDecl([NotNull] Oberon0Parser.VarDeclContext context)
         {
-            string typeName = ctx.type().GetText();
-            foreach (var id in ctx.identList().ID())
+            string typeName = context.type().GetText();
+            foreach (var id in context.identList().ID())
             {
-                if (Lookup(id.GetText()) != null)
-                    Errors.Add($"Variable redeclaration: {id.GetText()}");
+                string varName = id.GetText();
+                if (Lookup(varName) != null)
+                    Errors.Add($"Variable redeclaration: {varName}");
                 else
-                    scopes[^1].Add(new Symbol(id.GetText(), SymbolKind.Variable, typeName));
+                    scopes[^1].Add(new Symbol(varName, SymbolKind.Variable, typeName));
             }
+            
+            return null;
         }
 
-        // Track constant declarations, check for redeclarations
-        public override void EnterConstDecl(Oberon0Parser.ConstDeclContext ctx)
+        // Visit constant declaration - track constants and check for redeclarations
+        public override object VisitConstDecl([NotNull] Oberon0Parser.ConstDeclContext context)
         {
-            string name = ctx.ID().GetText();
+            string name = context.ID().GetText();
             if (globalSymbols.Lookup(name) != null)
                 Errors.Add($"Constant redeclaration: {name}");
             else
                 globalSymbols.Add(new Symbol(name, SymbolKind.Constant, null));
+            
+            return null;
         }
 
-        // Track procedure declarations with redeclaration check
-        public override void EnterProcDecl(Oberon0Parser.ProcDeclContext ctx)
+        // Visit procedure declaration - track procedures with redeclaration check
+        public override object VisitProcDecl([NotNull] Oberon0Parser.ProcDeclContext context)
         {
-            string name = ctx.procHeading().ID().GetText();
+            string name = context.procHeading().ID().GetText();
             if (globalSymbols.Lookup(name) != null)
                 Errors.Add($"Procedure redeclaration: {name}");
             else
                 globalSymbols.Add(new Symbol(name, SymbolKind.Procedure));
+            
+            // Visit procedure body (which will handle scope)
+            return base.VisitProcDecl(context);
         }
 
-        // Enter a new procedure body scope, add formal parameters
-        public override void EnterProcBody(Oberon0Parser.ProcBodyContext ctx)
+        // Visit procedure body - enter new scope, add formal parameters
+        public override object VisitProcBody([NotNull] Oberon0Parser.ProcBodyContext context)
         {
             scopes.Add(new SymbolTable());
-            var parent = (Oberon0Parser.ProcDeclContext)ctx.Parent;
+            
+            var parent = (Oberon0Parser.ProcDeclContext)context.Parent;
             var heading = parent.procHeading();
             if (heading.formalParameters() != null)
             {
@@ -85,37 +102,50 @@ namespace Compiler.Semantics
                         scopes[^1].Add(new Symbol(id.GetText(), SymbolKind.Variable, typeName));
                 }
             }
-        }
-
-        // Exit procedure scope
-        public override void ExitProcBody(Oberon0Parser.ProcBodyContext ctx)
-        {
+            
+            // Visit children
+            var result = base.VisitProcBody(context);
+            
+            // Exit procedure scope
             scopes.RemoveAt(scopes.Count - 1);
+            
+            return result;
         }
 
-        // Check assignment types and existence
-        public override void EnterAssignment(Oberon0Parser.AssignmentContext ctx)
+        // Visit assignment - check types and existence
+        public override object VisitAssignment([NotNull] Oberon0Parser.AssignmentContext context)
         {
-            string expectedType = GetDesignatorType(ctx.designator());
-            string exprType = InferExpressionType(ctx.expression());
-            string designator = ctx.designator().GetText();
+            string expectedType = GetDesignatorType(context.designator());
+            string exprType = InferExpressionType(context.expression());
+            string designator = context.designator().GetText();
 
             if (expectedType == null)
             {
                 Errors.Add($"Assignment to undeclared variable: {designator}");
-                return;
+                return null;
             }
+            
             if (exprType != null && expectedType != exprType)
                 Errors.Add($"Type mismatch in assignment: {designator} is {expectedType}, but expression is {exprType}");
+            
+            return null;
         }
 
-        // Check procedure call existence
-        public override void EnterProcedureCall(Oberon0Parser.ProcedureCallContext ctx)
+        // Visit procedure call - check existence
+        public override object VisitProcedureCall([NotNull] Oberon0Parser.ProcedureCallContext context)
         {
-            string procName = ctx.ID().GetText();
+            string procName = context.ID().GetText();
             var proc = globalSymbols.Lookup(procName);
             if (proc == null && !IsBuiltIn(procName))
                 Errors.Add($"Call to undefined procedure: {procName}");
+            
+            // Visit expression list if present
+            if (context.expressionList() != null)
+            {
+                Visit(context.expressionList());
+            }
+            
+            return null;
         }
 
         // Lookup symbol through nested scopes
