@@ -1,0 +1,36 @@
+MODULE PrintDemo4;
+
+VAR
+  i: INTEGER;
+  r: REAL;
+  b: BOOLEAN;
+  s: STRING;
+
+BEGIN
+  i := 42;
+  r := 2.71828;
+  b := TRUE;
+  s := "Hello, Oberon!";
+
+  WRITELN("=== Print Demo 4 ===");
+  WRITE("String: "); WRITELN(s);
+  WRITE("Integer: "); WRITELN(i);
+  WRITE("Real: "); WRITELN(r);
+  WRITE("Boolean: "); WRITELN(b);
+  WRITELN();
+
+  WRITE("Counting: ");
+  i := 1;
+  WHILE i <= 5 DO
+    WRITE(i); WRITE(" ");
+    i := i + 1
+  END;
+  WRITELN();
+
+  WRITELN("A few more lines:");
+  WRITELN("Line 1");
+  WRITELN("Line 2");
+  WRITELN("Line 3");
+
+  WRITELN("Done.");
+END PrintDemo4.

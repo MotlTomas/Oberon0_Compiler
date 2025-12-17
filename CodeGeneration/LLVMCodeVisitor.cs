@@ -43,6 +43,78 @@ namespace Compiler.CodeGeneration
             InitializeBuiltIns();
         }
 
+        public override LLVMValueRef VisitIoStatement([NotNull] Oberon0Parser.IoStatementContext context)
+        {
+            // Forms:
+            // WRITE ( expression )
+            // WRITELN ( [expression] )
+            // READ ( designator )
+            var first = context.GetChild(0).GetText();
+            if (first == "WRITE")
+            {
+                var expr = context.expression();
+                if (expr != null)
+                {
+                    var val = Visit(expr);
+                    var printf = module.GetNamedFunction("printf");
+                    var fmt = val.TypeOf.Kind switch
+                    {
+                        LLVMTypeKind.LLVMIntegerTypeKind => "%lld",
+                        LLVMTypeKind.LLVMDoubleTypeKind => "%lf",
+                        LLVMTypeKind.LLVMPointerTypeKind => "%s",
+                        _ => "%d"
+                    };
+                    var fmtStr = builder.BuildGlobalStringPtr(fmt, ".fmt");
+                    builder.BuildCall2(printf.TypeOf, printf, new[] { fmtStr, val });
+                }
+                return default;
+            }
+
+            if (first == "WRITELN")
+            {
+                var expr = context.expression();
+                var printf = module.GetNamedFunction("printf");
+                if (expr == null)
+                {
+                    var nl = builder.BuildGlobalStringPtr("\n", ".nl");
+                    builder.BuildCall2(printf.TypeOf, printf, new[] { nl });
+                    return default;
+                }
+
+                var val = Visit(expr);
+                var fmt = val.TypeOf.Kind switch
+                {
+                    LLVMTypeKind.LLVMIntegerTypeKind => "%lld",
+                    LLVMTypeKind.LLVMDoubleTypeKind => "%lf",
+                    LLVMTypeKind.LLVMPointerTypeKind => "%s",
+                    _ => "%d"
+                };
+                fmt += "\n";
+                var fmtStr = builder.BuildGlobalStringPtr(fmt, ".fmt");
+                builder.BuildCall2(printf.TypeOf, printf, new[] { fmtStr, val });
+                return default;
+            }
+
+            if (first == "READ")
+            {
+                var designator = context.designator();
+                if (designator == null)
+                    throw new Exception("READ requires a designator");
+                var varName = designator.ID().GetText();
+                var variable = LookupVariable(varName);
+                if (variable == null)
+                    throw new Exception($"Variable not found: {varName}");
+
+                var scanf = module.GetNamedFunction("scanf");
+                string fmt = variable.Type.Kind == LLVMTypeKind.LLVMDoubleTypeKind ? "%lf" : "%lld";
+                var fmtStr = builder.BuildGlobalStringPtr(fmt, ".scan");
+                builder.BuildCall2(scanf.TypeOf, scanf, new[] { fmtStr, variable.Value });
+                return default;
+            }
+
+            return default;
+        }
+
         private void InitializeBuiltIns()
         {
             // Declare printf: i32 @printf(i8*, ...)
@@ -304,6 +376,10 @@ namespace Compiler.CodeGeneration
             else if (context.procedureCall() != null)
             {
                 Visit(context.procedureCall());
+            }
+            else if (context.ioStatement() != null)
+            {
+                Visit(context.ioStatement());
             }
             else if (context.ifStatement() != null)
             {

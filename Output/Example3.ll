@@ -4,6 +4,7 @@ target triple = "x86_64-pc-linux-gnu"
 
 @n = global i64 0
 @result = global i64 0
+@.fmt = private unnamed_addr constant [5 x i8] c"%lld\00", align 1
 
 declare i32 @printf(i8*, ...)
 
@@ -49,5 +50,7 @@ if.else:                                          ; preds = %entry
   br label %if.end
 
 if.end:                                           ; preds = %if.else, %if.then
+  %result = load i64, i64* @result
+  %1 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.fmt, i32 0, i32 0), i64 %result)
   ret i32 0
 }

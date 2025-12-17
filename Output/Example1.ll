@@ -9,6 +9,9 @@ target triple = "x86_64-pc-linux-gnu"
 @.str = private unnamed_addr constant [5 x i8] c"true\00", align 1
 @.str.1 = private unnamed_addr constant [6 x i8] c"false\00", align 1
 @.str.2 = private unnamed_addr constant [9 x i8] c"Result: \00", align 1
+@.fmt = private unnamed_addr constant [5 x i8] c"%lld\00", align 1
+@.fmt.3 = private unnamed_addr constant [4 x i8] c"%lf\00", align 1
+@.fmt.4 = private unnamed_addr constant [3 x i8] c"%s\00", align 1
 
 declare i32 @printf(i8*, ...)
 
@@ -68,5 +71,11 @@ entry:
   %b = load i1, i1* @b
   %2 = call i8* @BoolToString(i1 %b)
   store i8* %2, i8** @s
+  %i2 = load i64, i64* @i
+  %3 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.fmt, i32 0, i32 0), i64 %i2)
+  %r3 = load double, double* @r
+  %4 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.fmt.3, i32 0, i32 0), double %r3)
+  %s = load i8*, i8** @s
+  %5 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.4, i32 0, i32 0), i8* %s)
   ret i32 0
 }
