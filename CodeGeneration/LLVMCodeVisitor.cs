@@ -254,10 +254,12 @@ namespace Compiler.CodeGeneration
                 Parameters = paramNames
             };
 
-            // Save context
+            // Save context (including current insert block for nested procedures)
+            LLVMBasicBlockRef savedInsertBlock = default;
             if (currentFunction != null)
             {
                 functionStack.Push(currentFunction);
+                savedInsertBlock = builder.InsertBlock;
             }
             currentFunction = function;
             functions[procName] = function;
@@ -324,10 +326,15 @@ namespace Compiler.CodeGeneration
 
             scopes.Pop();
 
-            // Restore previous function context
+            // Restore previous function context and builder position
             if (functionStack.Count > 0)
             {
                 currentFunction = functionStack.Pop();
+                // Restore builder position to the saved insert block of the parent function
+                if (savedInsertBlock.Handle != IntPtr.Zero)
+                {
+                    builder.PositionAtEnd(savedInsertBlock);
+                }
             }
             else
             {
@@ -339,10 +346,20 @@ namespace Compiler.CodeGeneration
 
         public override LLVMValueRef VisitProcBody([NotNull] Oberon0Parser.ProcBodyContext context)
         {
-            // Visit declarations
+            // Save current insert block before visiting nested declarations (which may define nested procedures)
+            var savedBlock = builder.InsertBlock;
+
+            // Visit declarations (including nested procedures)
             if (context.declarations() != null)
             {
                 Visit(context.declarations());
+            }
+
+            // Restore insert block position after processing nested procedures
+            // so that statements are emitted into the correct function
+            if (savedBlock.Handle != IntPtr.Zero)
+            {
+                builder.PositionAtEnd(savedBlock);
             }
 
             // Visit statements

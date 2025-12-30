@@ -1,0 +1,23 @@
+MODULE NestedProcTest;
+
+VAR
+    result: INTEGER;
+
+PROCEDURE Outer(a: INTEGER): INTEGER;
+VAR temp: INTEGER;
+
+    PROCEDURE Inner(b: INTEGER): INTEGER;
+    BEGIN
+        RETURN b * 3
+    END Inner;
+
+BEGIN
+    temp := Inner(a);
+    RETURN temp + 10
+END Outer;
+
+BEGIN
+    result := Outer(1);
+    WRITELN("Result of Outer(5):");
+    WRITELN(result)
+END NestedProcTest.

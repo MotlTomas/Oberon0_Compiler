@@ -17,7 +17,9 @@ entry:
   %x.addr = alloca i64
   store i64 %0, i64* %x.addr
   %acc = alloca i64
-  ret i64 0
+  store i64 0, i64* %acc
+  %acc1 = load i64, i64* %acc
+  ret i64 %acc1
 }
 
 define i64 @Inner(i64) {
@@ -27,9 +29,6 @@ entry:
   %y = load i64, i64* %y.addr
   %mul = mul i64 %y, 2
   ret i64 %mul
-  store i64 0, i64* %acc
-  %acc = load i64, i64* %acc
-  ret i64 %acc
 }
 
 define i32 @main() {
