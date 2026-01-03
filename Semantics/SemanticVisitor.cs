@@ -14,6 +14,9 @@ namespace Compiler.Semantics
 
         // Map user defined array types to their element types
         private readonly Dictionary<string, string> arrayTypes = new();
+        
+        // Store procedure parameter types for type checking
+        private readonly Dictionary<string, List<string>> procedureParams = new();
 
         // Stack of symbol tables representing nested scopes
         private readonly List<SymbolTable> scopes = new();
@@ -82,6 +85,22 @@ namespace Compiler.Semantics
             else
                 globalSymbols.Add(new Symbol(name, SymbolKind.Procedure));
             
+            // Store parameter types for later type checking
+            var paramTypes = new List<string>();
+            var heading = context.procHeading();
+            if (heading.formalParameters() != null)
+            {
+                foreach (var fp in heading.formalParameters().fpSection())
+                {
+                    string typeName = fp.type().GetText();
+                    foreach (var _ in fp.identList().ID())
+                    {
+                        paramTypes.Add(typeName);
+                    }
+                }
+            }
+            procedureParams[name] = paramTypes;
+            
             // Visit procedure body (which will handle scope)
             return base.VisitProcDecl(context);
         }
@@ -131,21 +150,73 @@ namespace Compiler.Semantics
             return null;
         }
 
-        // Visit procedure call - check existence
+        // Visit procedure call - check existence and argument types
         public override object VisitProcedureCall([NotNull] Oberon0Parser.ProcedureCallContext context)
         {
             string procName = context.ID().GetText();
             var proc = globalSymbols.Lookup(procName);
             if (proc == null && !IsBuiltIn(procName))
-                Errors.Add($"Call to undefined procedure: {procName}");
-            
-            // Visit expression list if present
-            if (context.expressionList() != null)
             {
-                Visit(context.expressionList());
+                Errors.Add($"Call to undefined procedure: {procName}");
+                return null;
+            }
+            
+            // Check argument types against parameter types
+            if (procedureParams.TryGetValue(procName, out var expectedTypes) && context.expressionList() != null)
+            {
+                var args = context.expressionList().expression();
+                if (args.Length != expectedTypes.Count)
+                {
+                    Errors.Add($"Procedure {procName}: expected {expectedTypes.Count} arguments, got {args.Length}");
+                }
+                else
+                {
+                    for (int i = 0; i < args.Length; i++)
+                    {
+                        string argType = InferExpressionType(args[i]);
+                        if (argType != null && argType != expectedTypes[i])
+                        {
+                            Errors.Add($"Procedure {procName}: argument {i + 1} type mismatch, expected {expectedTypes[i]}, got {argType}");
+                        }
+                    }
+                }
             }
             
             return null;
+        }
+        
+        // Visit IF statement - check that condition is BOOLEAN
+        public override object VisitIfStatement([NotNull] Oberon0Parser.IfStatementContext context)
+        {
+            foreach (var expr in context.expression())
+            {
+                string condType = InferExpressionType(expr);
+                if (condType != null && condType != "BOOLEAN")
+                {
+                    Errors.Add($"IF condition must be BOOLEAN, got {condType}");
+                }
+            }
+            
+            // Continue visiting children
+            return base.VisitIfStatement(context);
+        }
+        
+        // Visit WHILE/FOR loop - check that condition is BOOLEAN
+        public override object VisitLoopStatement([NotNull] Oberon0Parser.LoopStatementContext context)
+        {
+            string keyword = context.GetChild(0).GetText();
+            
+            if (keyword == "WHILE")
+            {
+                string condType = InferExpressionType(context.expression(0));
+                if (condType != null && condType != "BOOLEAN")
+                {
+                    Errors.Add($"WHILE condition must be BOOLEAN, got {condType}");
+                }
+            }
+            
+            // Continue visiting children
+            return base.VisitLoopStatement(context);
         }
 
         // Lookup symbol through nested scopes
@@ -185,12 +256,77 @@ namespace Compiler.Semantics
         }
 
         // Infer expression type from literals or referenced variables
+        // Also checks for type mismatches in binary operations
         private string InferExpressionType(Oberon0Parser.ExpressionContext ctx)
         {
             if (ctx == null) return null;
-            var se = ctx.simpleExpression()[0];
-            var term = se.term()[0];
-            var factor = term.factor()[0];
+            
+            // Handle comparison expressions (return BOOLEAN)
+            if (ctx.simpleExpression().Length > 1)
+            {
+                // This is a comparison: left op right
+                string leftType = InferSimpleExpressionType(ctx.simpleExpression(0));
+                string rightType = InferSimpleExpressionType(ctx.simpleExpression(1));
+                
+                if (leftType != null && rightType != null && leftType != rightType)
+                {
+                    Errors.Add($"Type mismatch in comparison: {leftType} vs {rightType}");
+                }
+                
+                return "BOOLEAN";
+            }
+            
+            return InferSimpleExpressionType(ctx.simpleExpression(0));
+        }
+        
+        private string InferSimpleExpressionType(Oberon0Parser.SimpleExpressionContext ctx)
+        {
+            if (ctx == null) return null;
+            
+            var terms = ctx.term();
+            if (terms.Length == 0) return null;
+            
+            string resultType = InferTermType(terms[0]);
+            
+            // Check all terms have the same type
+            for (int i = 1; i < terms.Length; i++)
+            {
+                string termType = InferTermType(terms[i]);
+                if (resultType != null && termType != null && resultType != termType)
+                {
+                    Errors.Add($"Type mismatch in arithmetic expression: {resultType} vs {termType}");
+                }
+            }
+            
+            return resultType;
+        }
+        
+        private string InferTermType(Oberon0Parser.TermContext ctx)
+        {
+            if (ctx == null) return null;
+            
+            var factors = ctx.factor();
+            if (factors.Length == 0) return null;
+            
+            string resultType = InferFactorType(factors[0]);
+            
+            // Check all factors have the same type
+            for (int i = 1; i < factors.Length; i++)
+            {
+                string factorType = InferFactorType(factors[i]);
+                if (resultType != null && factorType != null && resultType != factorType)
+                {
+                    Errors.Add($"Type mismatch in arithmetic expression: {resultType} vs {factorType}");
+                }
+            }
+            
+            return resultType;
+        }
+        
+        private string InferFactorType(Oberon0Parser.FactorContext factor)
+        {
+            if (factor == null) return null;
+            
             if (factor.literal() != null)
             {
                 var lit = factor.literal();
@@ -203,9 +339,24 @@ namespace Compiler.Semantics
                 if (lit.BOOLEAN_LITERAL() != null)
                     return "BOOLEAN";
             }
+            
             if (factor.designator() != null)
                 return GetDesignatorType(factor.designator());
-
+            
+            if (factor.expression() != null)
+                return InferExpressionType(factor.expression());
+            
+            if (factor.factor() != null)
+            {
+                // NOT factor
+                string innerType = InferFactorType(factor.factor());
+                if (innerType != null && innerType != "BOOLEAN")
+                {
+                    Errors.Add($"NOT operator requires BOOLEAN, got {innerType}");
+                }
+                return "BOOLEAN";
+            }
+            
             return null;
         }
     }

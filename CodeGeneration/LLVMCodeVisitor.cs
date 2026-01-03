@@ -402,6 +402,14 @@ namespace Compiler.CodeGeneration
             {
                 Visit(context.ifStatement());
             }
+            else if (context.loopStatement() != null)
+            {
+                Visit(context.loopStatement());
+            }
+            else if (context.switchStatement() != null)
+            {
+                Visit(context.switchStatement());
+            }
             else if (context.returnStatement() != null)
             {
                 Visit(context.returnStatement());
@@ -529,6 +537,243 @@ namespace Compiler.CodeGeneration
             {
                 return builder.BuildRetVoid();
             }
+        }
+
+        public override LLVMValueRef VisitLoopStatement([NotNull] Oberon0Parser.LoopStatementContext context)
+        {
+            if (currentFunction == null) return default;
+
+            var func = currentFunction.Value;
+            var keyword = context.GetChild(0).GetText();
+
+            if (keyword == "WHILE")
+            {
+                // WHILE expression DO statementSequence END
+                var condBlock = func.AppendBasicBlock("while.cond");
+                var bodyBlock = func.AppendBasicBlock("while.body");
+                var endBlock = func.AppendBasicBlock("while.end");
+
+                // Push loop context for BREAK/CONTINUE support
+                loopStack.Push(new LoopContext { CondBlock = condBlock, EndBlock = endBlock });
+
+                // Jump to condition
+                builder.BuildBr(condBlock);
+
+                // Condition block
+                builder.PositionAtEnd(condBlock);
+                var cond = Visit(context.expression(0));
+                cond = ConvertToBool(cond);
+                builder.BuildCondBr(cond, bodyBlock, endBlock);
+
+                // Body block
+                builder.PositionAtEnd(bodyBlock);
+                Visit(context.statementSequence());
+                if (builder.InsertBlock.Terminator.Handle == IntPtr.Zero)
+                {
+                    builder.BuildBr(condBlock);
+                }
+
+                // End block
+                builder.PositionAtEnd(endBlock);
+                loopStack.Pop();
+            }
+            else if (keyword == "REPEAT")
+            {
+                // REPEAT statementSequence UNTIL expression
+                var bodyBlock = func.AppendBasicBlock("repeat.body");
+                var condBlock = func.AppendBasicBlock("repeat.cond");
+                var endBlock = func.AppendBasicBlock("repeat.end");
+
+                loopStack.Push(new LoopContext { CondBlock = condBlock, EndBlock = endBlock });
+
+                // Jump to body
+                builder.BuildBr(bodyBlock);
+
+                // Body block
+                builder.PositionAtEnd(bodyBlock);
+                Visit(context.statementSequence());
+                if (builder.InsertBlock.Terminator.Handle == IntPtr.Zero)
+                {
+                    builder.BuildBr(condBlock);
+                }
+
+                // Condition block (at the end)
+                builder.PositionAtEnd(condBlock);
+                var cond = Visit(context.expression(0));
+                cond = ConvertToBool(cond);
+                // REPEAT UNTIL: exit when condition is TRUE
+                builder.BuildCondBr(cond, endBlock, bodyBlock);
+
+                // End block
+                builder.PositionAtEnd(endBlock);
+                loopStack.Pop();
+            }
+            else if (keyword == "FOR")
+            {
+                // FOR ID := expression (TO | DOWNTO) expression DO statementSequence END
+                var loopVarName = context.ID().GetText();
+                var loopVar = LookupVariable(loopVarName);
+                if (loopVar == null)
+                {
+                    throw new Exception($"Loop variable not found: {loopVarName}");
+                }
+
+                // Determine direction (TO or DOWNTO)
+                bool isDownTo = context.GetChild(4).GetText() == "DOWNTO";
+
+                // Initialize loop variable
+                var startValue = Visit(context.expression(0));
+                builder.BuildStore(startValue, loopVar.Value);
+
+                // Get end value
+                var endValue = Visit(context.expression(1));
+
+                var condBlock = func.AppendBasicBlock("for.cond");
+                var bodyBlock = func.AppendBasicBlock("for.body");
+                var incBlock = func.AppendBasicBlock("for.inc");
+                var endBlock = func.AppendBasicBlock("for.end");
+
+                loopStack.Push(new LoopContext { CondBlock = incBlock, EndBlock = endBlock });
+
+                // Jump to condition
+                builder.BuildBr(condBlock);
+
+                // Condition block
+                builder.PositionAtEnd(condBlock);
+                var currentValue = builder.BuildLoad2(loopVar.Type, loopVar.Value, loopVarName);
+                LLVMValueRef cmp;
+                if (isDownTo)
+                {
+                    // DOWNTO: continue while i >= end
+                    cmp = builder.BuildICmp(LLVMIntPredicate.LLVMIntSGE, currentValue, endValue, "for.cmp");
+                }
+                else
+                {
+                    // TO: continue while i <= end
+                    cmp = builder.BuildICmp(LLVMIntPredicate.LLVMIntSLE, currentValue, endValue, "for.cmp");
+                }
+                builder.BuildCondBr(cmp, bodyBlock, endBlock);
+
+                // Body block
+                builder.PositionAtEnd(bodyBlock);
+                Visit(context.statementSequence());
+                if (builder.InsertBlock.Terminator.Handle == IntPtr.Zero)
+                {
+                    builder.BuildBr(incBlock);
+                }
+
+                // Increment/Decrement block
+                builder.PositionAtEnd(incBlock);
+                currentValue = builder.BuildLoad2(loopVar.Type, loopVar.Value, loopVarName);
+                LLVMValueRef nextValue;
+                if (isDownTo)
+                {
+                    nextValue = builder.BuildSub(currentValue, LLVMValueRef.CreateConstInt(LLVMTypeRef.Int64, 1), "for.dec");
+                }
+                else
+                {
+                    nextValue = builder.BuildAdd(currentValue, LLVMValueRef.CreateConstInt(LLVMTypeRef.Int64, 1), "for.inc");
+                }
+                builder.BuildStore(nextValue, loopVar.Value);
+                builder.BuildBr(condBlock);
+
+                // End block
+                builder.PositionAtEnd(endBlock);
+                loopStack.Pop();
+            }
+
+            return default;
+        }
+
+        public override LLVMValueRef VisitSwitchStatement([NotNull] Oberon0Parser.SwitchStatementContext context)
+        {
+            if (currentFunction == null) return default;
+
+            var func = currentFunction.Value;
+
+            // Evaluate the CASE expression
+            var switchValue = Visit(context.expression());
+
+            // Create blocks for each case branch and the end/else block
+            var caseBranches = context.caseBranch();
+            var caseBlocks = new List<LLVMBasicBlockRef>();
+            var caseCondBlocks = new List<LLVMBasicBlockRef>();
+            
+            for (int i = 0; i < caseBranches.Length; i++)
+            {
+                caseCondBlocks.Add(func.AppendBasicBlock($"case.cond.{i}"));
+                caseBlocks.Add(func.AppendBasicBlock($"case.body.{i}"));
+            }
+
+            var elseBlock = func.AppendBasicBlock("case.else");
+            var endBlock = func.AppendBasicBlock("case.end");
+
+            // Jump to first case condition
+            if (caseCondBlocks.Count > 0)
+            {
+                builder.BuildBr(caseCondBlocks[0]);
+            }
+            else
+            {
+                builder.BuildBr(elseBlock);
+            }
+
+            // Generate code for each case branch
+            for (int i = 0; i < caseBranches.Length; i++)
+            {
+                var branch = caseBranches[i];
+                var literals = branch.literal();
+
+                // Condition block - check if value matches any of the literals
+                builder.PositionAtEnd(caseCondBlocks[i]);
+
+                LLVMValueRef matchCondition = default;
+                foreach (var literal in literals)
+                {
+                    var literalValue = Visit(literal);
+                    var cmp = builder.BuildICmp(LLVMIntPredicate.LLVMIntEQ, switchValue, literalValue, $"case.cmp.{i}");
+                    
+                    if (matchCondition.Handle == IntPtr.Zero)
+                    {
+                        matchCondition = cmp;
+                    }
+                    else
+                    {
+                        // OR the conditions together (for multiple literals like 1, 2, 3: ...)
+                        matchCondition = builder.BuildOr(matchCondition, cmp, "case.or");
+                    }
+                }
+
+                // If match, go to body; otherwise go to next case or else
+                var nextBlock = (i + 1 < caseCondBlocks.Count) ? caseCondBlocks[i + 1] : elseBlock;
+                builder.BuildCondBr(matchCondition, caseBlocks[i], nextBlock);
+
+                // Body block
+                builder.PositionAtEnd(caseBlocks[i]);
+                Visit(branch.statementSequence());
+                
+                if (builder.InsertBlock.Terminator.Handle == IntPtr.Zero)
+                {
+                    builder.BuildBr(endBlock);
+                }
+            }
+
+            // ELSE block
+            builder.PositionAtEnd(elseBlock);
+            if (context.statementSequence() != null)
+            {
+                Visit(context.statementSequence());
+            }
+            
+            if (builder.InsertBlock.Terminator.Handle == IntPtr.Zero)
+            {
+                builder.BuildBr(endBlock);
+            }
+
+            // End block
+            builder.PositionAtEnd(endBlock);
+
+            return default;
         }
 
         #endregion
