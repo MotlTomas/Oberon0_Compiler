@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using Antlr4.Runtime.Misc;
 using LLVMSharp.Interop;
 
@@ -8,7 +6,6 @@ namespace Compiler.CodeGeneration
 {
     /// <summary>
     /// LLVM IR Code Generator using Visitor pattern
-    /// Provides better control flow and type safety compared to Listener pattern
     /// </summary>
     public class LLVMCodeVisitor : Oberon0BaseVisitor<LLVMValueRef>
     {
@@ -20,39 +17,28 @@ namespace Compiler.CodeGeneration
         private readonly Stack<Dictionary<string, Variable>> scopes = new();
         private readonly Dictionary<string, Variable> globalVars = new();
         private readonly Dictionary<string, Function> functions = new();
-        
-        // Type registry for user-defined types (e.g., IntMatrix = ARRAY 2, 2 OF INTEGER)
+
+        // Type registry for user-defined types
         private readonly Dictionary<string, LLVMTypeRef> userTypes = new();
-        private readonly Dictionary<string, Oberon0Parser.TypeContext> userTypeContexts = new();
 
         // Current context
         private Function? currentFunction = null;
-        private readonly Stack<LoopContext> loopStack = new();
         private readonly Stack<Function> functionStack = new();
-        
+
         // Store module BEGIN block for main() function
         private Oberon0Parser.StatementSequenceContext? moduleBeginBlock = null;
 
         public LLVMCodeVisitor(string moduleName)
         {
             this.moduleName = moduleName;
-
-            // Create LLVM module and builder
             module = LLVMModuleRef.CreateWithName(moduleName);
             builder = module.Context.CreateBuilder();
-
-            // Set target triple for Windows MSVC
             module.Target = "x86_64-pc-windows-msvc";
-
             InitializeBuiltIns();
         }
 
         public override LLVMValueRef VisitIoStatement([NotNull] Oberon0Parser.IoStatementContext context)
         {
-            // Forms:
-            // WRITE ( expression )
-            // WRITELN ( [expression] )
-            // READ ( designator )
             var first = context.GetChild(0).GetText();
             if (first == "WRITE")
             {
@@ -121,21 +107,18 @@ namespace Compiler.CodeGeneration
 
         private void InitializeBuiltIns()
         {
-            // Declare printf: i32 @printf(i8*, ...)
             var printfType = LLVMTypeRef.CreateFunction(
                 LLVMTypeRef.Int32,
                 new[] { LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0) },
                 true);
             module.AddFunction("printf", printfType);
 
-            // Declare scanf: i32 @scanf(i8*, ...)
             var scanfType = LLVMTypeRef.CreateFunction(
                 LLVMTypeRef.Int32,
                 new[] { LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0) },
                 true);
             module.AddFunction("scanf", scanfType);
 
-            // Declare puts: i32 @puts(i8*)
             var putsType = LLVMTypeRef.CreateFunction(
                 LLVMTypeRef.Int32,
                 new[] { LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0) });
@@ -147,43 +130,38 @@ namespace Compiler.CodeGeneration
         public override LLVMValueRef VisitModule([NotNull] Oberon0Parser.ModuleContext context)
         {
             scopes.Push(globalVars);
-            
-            // Visit declarations
+
             if (context.declarations() != null)
             {
                 Visit(context.declarations());
             }
-            
-            // Store the BEGIN block (statementSequence) for later execution in main()
+
             if (context.statementSequence() != null)
             {
                 moduleBeginBlock = context.statementSequence();
             }
-            
+
             scopes.Pop();
             return default;
         }
 
         public override LLVMValueRef VisitDeclarations([NotNull] Oberon0Parser.DeclarationsContext context)
         {
-            // Process TYPE declarations first
             foreach (var typeDecl in context.typeDecl())
             {
                 Visit(typeDecl);
             }
-            
-            // Process VAR declarations
+
             foreach (var varDecl in context.varDecl())
             {
                 Visit(varDecl);
             }
-            
-            // Process PROCEDURE declarations
+
             foreach (var procDecl in context.procDecl())
             {
                 Visit(procDecl);
             }
-            
+
             return default;
         }
 
@@ -191,14 +169,9 @@ namespace Compiler.CodeGeneration
         {
             string typeName = context.ID().GetText();
             var typeContext = context.type();
-            
-            // Store the type context for later resolution
-            userTypeContexts[typeName] = typeContext;
-            
-            // Create the LLVM type
             var llvmType = GetLLVMType(typeContext);
             userTypes[typeName] = llvmType;
-            
+
             return default;
         }
 
@@ -213,7 +186,6 @@ namespace Compiler.CodeGeneration
 
                 if (currentFunction == null)
                 {
-                    // Global variable
                     value = module.AddGlobal(llvmType, varName);
                     value.Initializer = LLVMValueRef.CreateConstNull(llvmType);
 
@@ -227,7 +199,6 @@ namespace Compiler.CodeGeneration
                 }
                 else
                 {
-                    // Local variable
                     value = builder.BuildAlloca(llvmType, varName);
 
                     scopes.Peek()[varName] = new Variable
@@ -252,18 +223,16 @@ namespace Compiler.CodeGeneration
             var heading = context.procHeading();
             string procName = heading.ID().GetText();
 
-            // Determine return type
             LLVMTypeRef returnType = LLVMTypeRef.Void;
             if (heading.type() != null)
             {
                 returnType = GetLLVMType(heading.type());
             }
 
-            // Build parameter types
             var paramTypes = new List<LLVMTypeRef>();
             var paramNames = new List<string>();
             var paramIsByRef = new List<bool>();
-            var paramBaseTypes = new List<LLVMTypeRef>();  // Store base type for arrays
+            var paramBaseTypes = new List<LLVMTypeRef>();
 
             if (heading.formalParameters() != null)
             {
@@ -271,8 +240,7 @@ namespace Compiler.CodeGeneration
                 {
                     var baseType = GetLLVMType(fp.type());
                     bool isByRef = fp.ChildCount > 0 && fp.GetChild(0).GetText() == "VAR";
-                    
-                    // Arrays and VAR parameters are passed by pointer
+
                     var paramType = baseType;
                     if (isByRef || baseType.Kind == LLVMTypeKind.LLVMArrayTypeKind)
                     {
@@ -289,7 +257,6 @@ namespace Compiler.CodeGeneration
                 }
             }
 
-            // Create function type and add to module
             var funcType = LLVMTypeRef.CreateFunction(returnType, paramTypes.ToArray());
             var func = module.AddFunction(procName, funcType);
 
@@ -303,7 +270,6 @@ namespace Compiler.CodeGeneration
                 ParameterTypes = paramTypes
             };
 
-            // Save context (including current insert block for nested procedures)
             LLVMBasicBlockRef savedInsertBlock = default;
             if (currentFunction != null)
             {
@@ -313,15 +279,12 @@ namespace Compiler.CodeGeneration
             currentFunction = function;
             functions[procName] = function;
 
-            // Create entry block
             var entry = func.AppendBasicBlock("entry");
             builder.PositionAtEnd(entry);
 
-            // Create new scope
             var localScope = new Dictionary<string, Variable>();
             scopes.Push(localScope);
 
-            // Allocate and store parameters
             for (int i = 0; i < paramNames.Count; i++)
             {
                 var param = func.GetParam((uint)i);
@@ -331,7 +294,6 @@ namespace Compiler.CodeGeneration
 
                 if (isByRef)
                 {
-                    // For VAR parameters and arrays, the parameter is already a pointer
                     localScope[paramNames[i]] = new Variable
                     {
                         Name = paramNames[i],
@@ -342,7 +304,6 @@ namespace Compiler.CodeGeneration
                 }
                 else
                 {
-                    // Value parameter - allocate and copy
                     var alloca = builder.BuildAlloca(paramType, $"{paramNames[i]}.addr");
                     builder.BuildStore(param, alloca);
 
@@ -355,13 +316,10 @@ namespace Compiler.CodeGeneration
                 }
             }
 
-            // Visit procedure body
             Visit(context.procBody());
 
-            // Add default return to any basic blocks without terminators
             if (currentFunction != null)
             {
-                // Iterate through all basic blocks and add terminators where missing
                 var block = currentFunction.Value.FirstBasicBlock;
                 while (block.Handle != IntPtr.Zero)
                 {
@@ -384,11 +342,9 @@ namespace Compiler.CodeGeneration
 
             scopes.Pop();
 
-            // Restore previous function context and builder position
             if (functionStack.Count > 0)
             {
                 currentFunction = functionStack.Pop();
-                // Restore builder position to the saved insert block of the parent function
                 if (savedInsertBlock.Handle != IntPtr.Zero)
                 {
                     builder.PositionAtEnd(savedInsertBlock);
@@ -404,23 +360,18 @@ namespace Compiler.CodeGeneration
 
         public override LLVMValueRef VisitProcBody([NotNull] Oberon0Parser.ProcBodyContext context)
         {
-            // Save current insert block before visiting nested declarations (which may define nested procedures)
             var savedBlock = builder.InsertBlock;
 
-            // Visit declarations (including nested procedures)
             if (context.declarations() != null)
             {
                 Visit(context.declarations());
             }
 
-            // Restore insert block position after processing nested procedures
-            // so that statements are emitted into the correct function
             if (savedBlock.Handle != IntPtr.Zero)
             {
                 builder.PositionAtEnd(savedBlock);
             }
 
-            // Visit statements
             if (context.statementSequence() != null)
             {
                 Visit(context.statementSequence());
@@ -472,7 +423,6 @@ namespace Compiler.CodeGeneration
             {
                 Visit(context.returnStatement());
             }
-            // Add other statement types as needed
 
             return default;
         }
@@ -488,59 +438,46 @@ namespace Compiler.CodeGeneration
                 throw new Exception($"Variable not found: {varName}");
             }
 
-            // Check for array element assignment
             var selectors = designator.selector();
             if (selectors != null && selectors.Length > 0)
             {
                 return StoreArrayElement(variable, selectors, context.expression());
             }
 
-            // Evaluate expression
             var exprValue = Visit(context.expression());
 
-            // Check if this is an array assignment (res := mat)
             if (variable.Type.Kind == LLVMTypeKind.LLVMArrayTypeKind)
             {
-                // For array assignment, we need to copy the entire array
-                // Get the source array pointer
-                var sourceVar = GetSourceVariable(context.expression());
+                var sourceVar = TryGetSourceVariable(context.expression());
                 if (sourceVar != null && sourceVar.Type.Kind == LLVMTypeKind.LLVMArrayTypeKind)
                 {
-                    // Use memcpy for array copy
                     CopyArray(variable, sourceVar);
                     return default;
                 }
             }
 
-            // Type conversion if needed
             if (exprValue.TypeOf != variable.Type)
             {
                 exprValue = ConvertType(exprValue, variable.Type);
             }
 
-            // Store value
             builder.BuildStore(exprValue, variable.Value);
             return default;
         }
 
         private LLVMValueRef StoreArrayElement(Variable variable, Oberon0Parser.SelectorContext[] selectors, Oberon0Parser.ExpressionContext expr)
         {
-            // Handle array element assignment: a[i, j] := value
             var indices = new List<LLVMValueRef>();
-            
-            // First index is always 0 for GEP into the array
             indices.Add(LLVMValueRef.CreateConstInt(LLVMTypeRef.Int64, 0));
-            
+
             foreach (var selector in selectors)
             {
-                // Check if this is an array index selector [...]
                 var exprList = selector.expressionList();
                 if (exprList != null)
                 {
                     foreach (var indexExpr in exprList.expression())
                     {
                         var indexValue = Visit(indexExpr);
-                        // Ensure index is i64
                         if (indexValue.TypeOf != LLVMTypeRef.Int64)
                         {
                             indexValue = ConvertType(indexValue, LLVMTypeRef.Int64);
@@ -549,27 +486,22 @@ namespace Compiler.CodeGeneration
                     }
                 }
             }
-            
-            // Build GEP to get pointer to element
+
             var elementPtr = builder.BuildInBoundsGEP2(variable.Type, variable.Value, indices.ToArray(), "arrayidx");
-            
-            // Determine element type
             var elementType = GetArrayElementType(variable.Type, indices.Count - 1);
-            
-            // Evaluate expression and store
+
             var value = Visit(expr);
             if (value.TypeOf != elementType)
             {
                 value = ConvertType(value, elementType);
             }
-            
+
             builder.BuildStore(value, elementPtr);
             return default;
         }
 
-        private Variable? GetSourceVariable(Oberon0Parser.ExpressionContext expr)
+        private Variable? TryGetSourceVariable(Oberon0Parser.ExpressionContext expr)
         {
-            // Try to extract variable from simple expression
             try
             {
                 var simpleExpr = expr.simpleExpression(0);
@@ -587,29 +519,26 @@ namespace Compiler.CodeGeneration
 
         private void CopyArray(Variable dest, Variable source)
         {
-            // Calculate array size
             var arrayType = dest.Type;
             ulong arraySize = GetTypeSize(arrayType);
-            
-            // Get base pointers as i8*
+
             var destPtr = builder.BuildBitCast(dest.Value, LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), "dest.ptr");
             var srcPtr = builder.BuildBitCast(source.Value, LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), "src.ptr");
-            
-            // Use C library memcpy instead of LLVM intrinsic
+
             var memcpyType = LLVMTypeRef.CreateFunction(
-                LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),  // returns void*
-                new[] { 
-                    LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),  // dest
-                    LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),  // src
-                    LLVMTypeRef.Int64  // size
+                LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
+                new[] {
+                    LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
+                    LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
+                    LLVMTypeRef.Int64
                 });
-            
+
             var memcpy = module.GetNamedFunction("memcpy");
             if (memcpy.Handle == IntPtr.Zero)
             {
                 memcpy = module.AddFunction("memcpy", memcpyType);
             }
-            
+
             builder.BuildCall2(memcpyType, memcpy, new[] {
                 destPtr,
                 srcPtr,
@@ -631,14 +560,13 @@ namespace Compiler.CodeGeneration
             {
                 return type.ArrayLength * GetTypeSize(type.ElementType);
             }
-            return 8; // Default
+            return 8;
         }
 
         public override LLVMValueRef VisitProcedureCall([NotNull] Oberon0Parser.ProcedureCallContext context)
         {
             string procName = context.ID().GetText();
 
-            // Handle built-in procedures
             if (procName == "WRITE" || procName == "WRITELN")
             {
                 HandleWrite(context, procName == "WRITELN");
@@ -650,13 +578,11 @@ namespace Compiler.CodeGeneration
                 return default;
             }
 
-            // User-defined procedure/function
             if (!functions.TryGetValue(procName, out var func))
             {
                 throw new Exception($"Procedure not found: {procName}");
             }
 
-            // Evaluate arguments
             var args = new List<LLVMValueRef>();
             if (context.expressionList() != null)
             {
@@ -665,24 +591,21 @@ namespace Compiler.CodeGeneration
                 {
                     var expr = expressions[i];
                     var paramType = func.ParameterTypes[i];
-                    
-                    // Check if parameter expects a pointer (VAR parameter or array)
+
                     if (paramType.Kind == LLVMTypeKind.LLVMPointerTypeKind)
                     {
-                        // Get the variable directly and pass its address
-                        var sourceVar = GetSourceVariable(expr);
+                        var sourceVar = TryGetSourceVariable(expr);
                         if (sourceVar != null)
                         {
                             args.Add(sourceVar.Value);
                             continue;
                         }
                     }
-                    
+
                     args.Add(Visit(expr));
                 }
             }
 
-            // Call the function
             return builder.BuildCall2(func.FunctionType, func.Value, args.ToArray());
         }
 
@@ -695,33 +618,29 @@ namespace Compiler.CodeGeneration
             var elseBlock = func.AppendBasicBlock("if.else");
             var endBlock = func.AppendBasicBlock("if.end");
 
-            // Evaluate condition
             var condition = Visit(context.expression(0));
             condition = ConvertToBool(condition);
             builder.BuildCondBr(condition, thenBlock, elseBlock);
 
-            // THEN block
             builder.PositionAtEnd(thenBlock);
             Visit(context.statementSequence(0));
-            
+
             if (builder.InsertBlock.Terminator.Handle == IntPtr.Zero)
             {
                 builder.BuildBr(endBlock);
             }
 
-            // ELSE block
             builder.PositionAtEnd(elseBlock);
             if (context.statementSequence().Length > 1)
             {
                 Visit(context.statementSequence(1));
             }
-            
+
             if (builder.InsertBlock.Terminator.Handle == IntPtr.Zero)
             {
                 builder.BuildBr(endBlock);
             }
 
-            // Continue at end block
             builder.PositionAtEnd(endBlock);
             return default;
         }
@@ -754,24 +673,17 @@ namespace Compiler.CodeGeneration
 
             if (keyword == "WHILE")
             {
-                // WHILE expression DO statementSequence END
                 var condBlock = func.AppendBasicBlock("while.cond");
                 var bodyBlock = func.AppendBasicBlock("while.body");
                 var endBlock = func.AppendBasicBlock("while.end");
 
-                // Push loop context for BREAK/CONTINUE support
-                loopStack.Push(new LoopContext { CondBlock = condBlock, EndBlock = endBlock });
-
-                // Jump to condition
                 builder.BuildBr(condBlock);
 
-                // Condition block
                 builder.PositionAtEnd(condBlock);
                 var cond = Visit(context.expression(0));
                 cond = ConvertToBool(cond);
                 builder.BuildCondBr(cond, bodyBlock, endBlock);
 
-                // Body block
                 builder.PositionAtEnd(bodyBlock);
                 Visit(context.statementSequence());
                 if (builder.InsertBlock.Terminator.Handle == IntPtr.Zero)
@@ -779,23 +691,16 @@ namespace Compiler.CodeGeneration
                     builder.BuildBr(condBlock);
                 }
 
-                // End block
                 builder.PositionAtEnd(endBlock);
-                loopStack.Pop();
             }
             else if (keyword == "REPEAT")
             {
-                // REPEAT statementSequence UNTIL expression
                 var bodyBlock = func.AppendBasicBlock("repeat.body");
                 var condBlock = func.AppendBasicBlock("repeat.cond");
                 var endBlock = func.AppendBasicBlock("repeat.end");
 
-                loopStack.Push(new LoopContext { CondBlock = condBlock, EndBlock = endBlock });
-
-                // Jump to body
                 builder.BuildBr(bodyBlock);
 
-                // Body block
                 builder.PositionAtEnd(bodyBlock);
                 Visit(context.statementSequence());
                 if (builder.InsertBlock.Terminator.Handle == IntPtr.Zero)
@@ -803,20 +708,15 @@ namespace Compiler.CodeGeneration
                     builder.BuildBr(condBlock);
                 }
 
-                // Condition block (at the end)
                 builder.PositionAtEnd(condBlock);
                 var cond = Visit(context.expression(0));
                 cond = ConvertToBool(cond);
-                // REPEAT UNTIL: exit when condition is TRUE
                 builder.BuildCondBr(cond, endBlock, bodyBlock);
 
-                // End block
                 builder.PositionAtEnd(endBlock);
-                loopStack.Pop();
             }
             else if (keyword == "FOR")
             {
-                // FOR ID := expression (TO | DOWNTO) expression DO statementSequence END
                 var loopVarName = context.ID().GetText();
                 var loopVar = LookupVariable(loopVarName);
                 if (loopVar == null)
@@ -824,14 +724,11 @@ namespace Compiler.CodeGeneration
                     throw new Exception($"Loop variable not found: {loopVarName}");
                 }
 
-                // Determine direction (TO or DOWNTO)
                 bool isDownTo = context.GetChild(4).GetText() == "DOWNTO";
 
-                // Initialize loop variable
                 var startValue = Visit(context.expression(0));
                 builder.BuildStore(startValue, loopVar.Value);
 
-                // Get end value
                 var endValue = Visit(context.expression(1));
 
                 var condBlock = func.AppendBasicBlock("for.cond");
@@ -839,28 +736,21 @@ namespace Compiler.CodeGeneration
                 var incBlock = func.AppendBasicBlock("for.inc");
                 var endBlock = func.AppendBasicBlock("for.end");
 
-                loopStack.Push(new LoopContext { CondBlock = incBlock, EndBlock = endBlock });
-
-                // Jump to condition
                 builder.BuildBr(condBlock);
 
-                // Condition block
                 builder.PositionAtEnd(condBlock);
                 var currentValue = builder.BuildLoad2(loopVar.Type, loopVar.Value, loopVarName);
                 LLVMValueRef cmp;
                 if (isDownTo)
                 {
-                    // DOWNTO: continue while i >= end
                     cmp = builder.BuildICmp(LLVMIntPredicate.LLVMIntSGE, currentValue, endValue, "for.cmp");
                 }
                 else
                 {
-                    // TO: continue while i <= end
                     cmp = builder.BuildICmp(LLVMIntPredicate.LLVMIntSLE, currentValue, endValue, "for.cmp");
                 }
                 builder.BuildCondBr(cmp, bodyBlock, endBlock);
 
-                // Body block
                 builder.PositionAtEnd(bodyBlock);
                 Visit(context.statementSequence());
                 if (builder.InsertBlock.Terminator.Handle == IntPtr.Zero)
@@ -868,7 +758,6 @@ namespace Compiler.CodeGeneration
                     builder.BuildBr(incBlock);
                 }
 
-                // Increment/Decrement block
                 builder.PositionAtEnd(incBlock);
                 currentValue = builder.BuildLoad2(loopVar.Type, loopVar.Value, loopVarName);
                 LLVMValueRef nextValue;
@@ -883,9 +772,7 @@ namespace Compiler.CodeGeneration
                 builder.BuildStore(nextValue, loopVar.Value);
                 builder.BuildBr(condBlock);
 
-                // End block
                 builder.PositionAtEnd(endBlock);
-                loopStack.Pop();
             }
 
             return default;
@@ -896,15 +783,12 @@ namespace Compiler.CodeGeneration
             if (currentFunction == null) return default;
 
             var func = currentFunction.Value;
-
-            // Evaluate the CASE expression
             var switchValue = Visit(context.expression());
 
-            // Create blocks for each case branch and the end/else block
             var caseBranches = context.caseBranch();
             var caseBlocks = new List<LLVMBasicBlockRef>();
             var caseCondBlocks = new List<LLVMBasicBlockRef>();
-            
+
             for (int i = 0; i < caseBranches.Length; i++)
             {
                 caseCondBlocks.Add(func.AppendBasicBlock($"case.cond.{i}"));
@@ -914,7 +798,6 @@ namespace Compiler.CodeGeneration
             var elseBlock = func.AppendBasicBlock("case.else");
             var endBlock = func.AppendBasicBlock("case.end");
 
-            // Jump to first case condition
             if (caseCondBlocks.Count > 0)
             {
                 builder.BuildBr(caseCondBlocks[0]);
@@ -924,13 +807,11 @@ namespace Compiler.CodeGeneration
                 builder.BuildBr(elseBlock);
             }
 
-            // Generate code for each case branch
             for (int i = 0; i < caseBranches.Length; i++)
             {
                 var branch = caseBranches[i];
                 var literals = branch.literal();
 
-                // Condition block - check if value matches any of the literals
                 builder.PositionAtEnd(caseCondBlocks[i]);
 
                 LLVMValueRef matchCondition = default;
@@ -938,45 +819,40 @@ namespace Compiler.CodeGeneration
                 {
                     var literalValue = Visit(literal);
                     var cmp = builder.BuildICmp(LLVMIntPredicate.LLVMIntEQ, switchValue, literalValue, $"case.cmp.{i}");
-                    
+
                     if (matchCondition.Handle == IntPtr.Zero)
                     {
                         matchCondition = cmp;
                     }
                     else
                     {
-                        // OR the conditions together (for multiple literals like 1, 2, 3: ...)
                         matchCondition = builder.BuildOr(matchCondition, cmp, "case.or");
                     }
                 }
 
-                // If match, go to body; otherwise go to next case or else
                 var nextBlock = (i + 1 < caseCondBlocks.Count) ? caseCondBlocks[i + 1] : elseBlock;
                 builder.BuildCondBr(matchCondition, caseBlocks[i], nextBlock);
 
-                // Body block
                 builder.PositionAtEnd(caseBlocks[i]);
                 Visit(branch.statementSequence());
-                
+
                 if (builder.InsertBlock.Terminator.Handle == IntPtr.Zero)
                 {
                     builder.BuildBr(endBlock);
                 }
             }
 
-            // ELSE block
             builder.PositionAtEnd(elseBlock);
             if (context.statementSequence() != null)
             {
                 Visit(context.statementSequence());
             }
-            
+
             if (builder.InsertBlock.Terminator.Handle == IntPtr.Zero)
             {
                 builder.BuildBr(endBlock);
             }
 
-            // End block
             builder.PositionAtEnd(endBlock);
 
             return default;
@@ -994,7 +870,6 @@ namespace Compiler.CodeGeneration
             }
             else
             {
-                // Comparison
                 var left = Visit(context.simpleExpression(0));
                 var right = Visit(context.simpleExpression(1));
                 string op = context.GetChild(1).GetText();
@@ -1007,7 +882,6 @@ namespace Compiler.CodeGeneration
         {
             var result = Visit(context.term(0));
 
-            // Handle unary +/-
             if (context.ChildCount > 0)
             {
                 var firstChild = context.GetChild(0).GetText();
@@ -1017,7 +891,6 @@ namespace Compiler.CodeGeneration
                 }
             }
 
-            // Handle binary operations
             for (int i = 1; i < context.term().Length; i++)
             {
                 int opIndex = i * 2 - 1;
@@ -1052,45 +925,38 @@ namespace Compiler.CodeGeneration
 
         public override LLVMValueRef VisitFactor([NotNull] Oberon0Parser.FactorContext context)
         {
-            // Literal
             if (context.literal() != null)
             {
                 return Visit(context.literal());
             }
 
-            // Parenthesized expression
             if (context.expression() != null)
             {
                 return Visit(context.expression());
             }
 
-            // NOT factor
             if (context.ChildCount > 0 && context.GetChild(0).GetText() == "NOT")
             {
                 var value = Visit(context.factor());
                 return BuildNot(value);
             }
 
-            // Designator (variable or function call)
             if (context.designator() != null)
             {
                 var designator = context.designator();
                 string varName = designator.ID().GetText();
 
-                // Function call
                 if (context.expressionList() != null)
                 {
                     return EvaluateFunctionCall(varName, context.expressionList());
                 }
 
-                // Variable access
                 var variable = LookupVariable(varName);
                 if (variable == null)
                 {
                     throw new Exception($"Variable not found: {varName}");
                 }
 
-                // Check for array access with selectors
                 var selectors = designator.selector();
                 if (selectors != null && selectors.Length > 0)
                 {
@@ -1105,22 +971,17 @@ namespace Compiler.CodeGeneration
 
         private LLVMValueRef LoadArrayElement(Variable variable, Oberon0Parser.SelectorContext[] selectors)
         {
-            // Handle array element access: a[i, j] or a[i][j]
             var indices = new List<LLVMValueRef>();
-            
-            // First index is always 0 for GEP into the array
             indices.Add(LLVMValueRef.CreateConstInt(LLVMTypeRef.Int64, 0));
-            
+
             foreach (var selector in selectors)
             {
-                // Check if this is an array index selector [...]
                 var exprList = selector.expressionList();
                 if (exprList != null)
                 {
                     foreach (var expr in exprList.expression())
                     {
                         var indexValue = Visit(expr);
-                        // Ensure index is i64
                         if (indexValue.TypeOf != LLVMTypeRef.Int64)
                         {
                             indexValue = ConvertType(indexValue, LLVMTypeRef.Int64);
@@ -1129,14 +990,10 @@ namespace Compiler.CodeGeneration
                     }
                 }
             }
-            
-            // Build GEP to get pointer to element
+
             var elementPtr = builder.BuildInBoundsGEP2(variable.Type, variable.Value, indices.ToArray(), "arrayidx");
-            
-            // Determine element type by stripping array dimensions
             var elementType = GetArrayElementType(variable.Type, indices.Count - 1);
-            
-            // Load the element
+
             return builder.BuildLoad2(elementType, elementPtr, "elem");
         }
 
@@ -1168,7 +1025,7 @@ namespace Compiler.CodeGeneration
             else if (context.STRING_LITERAL() != null)
             {
                 string str = context.STRING_LITERAL().GetText();
-                str = str.Substring(1, str.Length - 2); // Remove quotes
+                str = str.Substring(1, str.Length - 2);
                 return builder.BuildGlobalStringPtr(str, ".str");
             }
             else if (context.BOOLEAN_LITERAL() != null)
@@ -1199,19 +1056,17 @@ namespace Compiler.CodeGeneration
                 {
                     var expr = expressions[i];
                     var paramType = func.ParameterTypes[i];
-                    
-                    // Check if parameter expects a pointer (VAR parameter or array)
+
                     if (paramType.Kind == LLVMTypeKind.LLVMPointerTypeKind)
                     {
-                        // Get the variable directly and pass its address
-                        var sourceVar = GetSourceVariable(expr);
+                        var sourceVar = TryGetSourceVariable(expr);
                         if (sourceVar != null)
                         {
                             args.Add(sourceVar.Value);
                             continue;
                         }
                     }
-                    
+
                     args.Add(Visit(expr));
                 }
             }
@@ -1225,7 +1080,6 @@ namespace Compiler.CodeGeneration
 
         private LLVMValueRef BuildBinaryOp(LLVMValueRef left, LLVMValueRef right, string op)
         {
-            // Type promotion
             if (left.TypeOf != right.TypeOf)
             {
                 if (left.TypeOf.Kind == LLVMTypeKind.LLVMDoubleTypeKind || right.TypeOf.Kind == LLVMTypeKind.LLVMDoubleTypeKind)
@@ -1235,7 +1089,6 @@ namespace Compiler.CodeGeneration
                 }
                 else if (left.TypeOf.Kind == LLVMTypeKind.LLVMIntegerTypeKind && right.TypeOf.Kind == LLVMTypeKind.LLVMIntegerTypeKind)
                 {
-                    // Promote to the larger integer type (default to i64 for safety)
                     var targetType = LLVMTypeRef.Int64;
                     if (left.TypeOf.IntWidth > right.TypeOf.IntWidth)
                     {
@@ -1413,77 +1266,56 @@ namespace Compiler.CodeGeneration
 
         private LLVMTypeRef GetLLVMType(Oberon0Parser.TypeContext context)
         {
-            // Check for basic types first
             string typeText = context.GetText();
-            
-            // Handle basic types
+
             if (typeText == "INTEGER") return LLVMTypeRef.Int64;
             if (typeText == "REAL") return LLVMTypeRef.Double;
             if (typeText == "BOOLEAN") return LLVMTypeRef.Int1;
             if (typeText == "STRING") return LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0);
-            
-            // Check if it's an ARRAY type
+
             if (context.ChildCount > 0 && context.GetChild(0).GetText() == "ARRAY")
             {
                 return CreateArrayType(context);
             }
-            
-            // Check if it's a user-defined type name (like IntMatrix)
+
             if (userTypes.TryGetValue(typeText, out var userType))
             {
                 return userType;
             }
-            
-            // Check if type context is stored (for forward references)
-            if (userTypeContexts.TryGetValue(typeText, out var storedContext))
-            {
-                var llvmType = GetLLVMType(storedContext);
-                userTypes[typeText] = llvmType;
-                return llvmType;
-            }
-            
-            // Default fallback
+
             return LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0);
         }
 
         private LLVMTypeRef CreateArrayType(Oberon0Parser.TypeContext context)
         {
-            // ARRAY expression (',' expression)* OF type
-            // Get dimensions from expressions
             var dimensions = new List<uint>();
             var expressions = context.expression();
-            
+
             foreach (var expr in expressions)
             {
-                // Evaluate constant expression for array dimension
                 uint dim = EvaluateConstantExpression(expr);
                 dimensions.Add(dim);
             }
-            
-            // Get element type (the type after OF)
+
             var elementTypeContext = context.type();
             var elementType = GetLLVMType(elementTypeContext);
-            
-            // Build nested array type from innermost to outermost
-            // ARRAY 2, 2 OF INTEGER -> [2 x [2 x i64]]
+
             var resultType = elementType;
             for (int i = dimensions.Count - 1; i >= 0; i--)
             {
                 resultType = LLVMTypeRef.CreateArray(resultType, dimensions[i]);
             }
-            
+
             return resultType;
         }
 
         private uint EvaluateConstantExpression(Oberon0Parser.ExpressionContext context)
         {
-            // Simple constant evaluation for array dimensions
             var text = context.GetText();
             if (uint.TryParse(text, out uint value))
             {
                 return value;
             }
-            // Default to 1 if we can't evaluate
             return 1;
         }
 
@@ -1506,7 +1338,7 @@ namespace Compiler.CodeGeneration
             else if (fromKind == LLVMTypeKind.LLVMIntegerTypeKind && toKind == LLVMTypeKind.LLVMIntegerTypeKind)
             {
                 if (value.TypeOf.IntWidth < targetType.IntWidth)
-                    return builder.BuildSExt(value, targetType, "sext");  // Use sign extension for signed integers
+                    return builder.BuildSExt(value, targetType, "sext");
                 else if (value.TypeOf.IntWidth > targetType.IntWidth)
                     return builder.BuildTrunc(value, targetType, "trunc");
             }
@@ -1556,7 +1388,6 @@ namespace Compiler.CodeGeneration
             var entry = main.AppendBasicBlock("entry");
             builder.PositionAtEnd(entry);
 
-            // Set up main function context
             currentFunction = new Function
             {
                 Name = "main",
@@ -1566,20 +1397,16 @@ namespace Compiler.CodeGeneration
                 Parameters = new List<string>()
             };
 
-            // Create scope for main function with global variables
             scopes.Push(globalVars);
 
-            // Execute the module's BEGIN block (if it exists)
             if (moduleBeginBlock != null)
             {
                 Visit(moduleBeginBlock);
             }
 
-            // Clean up scope
             scopes.Pop();
             currentFunction = null;
 
-            // Return 0 from main
             builder.BuildRet(LLVMValueRef.CreateConstInt(LLVMTypeRef.Int32, 0));
         }
 
@@ -1602,11 +1429,4 @@ namespace Compiler.CodeGeneration
 
         #endregion
     }
-
-    #region Supporting Classes - moved to SharedTypes.cs
-
-    // Variable, Function, and LoopContext classes have been moved to SharedTypes.cs
-    // to avoid duplication with LLVMCodeGenerator.cs
-
-    #endregion
 }

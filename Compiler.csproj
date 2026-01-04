@@ -21,6 +21,7 @@
   <ItemGroup>
     <Folder Include="Compiler\" />
     <Folder Include="Generated\" />
+    <Folder Include="Output\" />
   </ItemGroup>
 
 </Project>

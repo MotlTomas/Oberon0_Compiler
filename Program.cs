@@ -1,171 +1,110 @@
 ﻿using Antlr4.Runtime;
-using Antlr4.Runtime.Tree;
 using Compiler.CodeGeneration;
 using Compiler.Semantics;
-using System;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices;
 
 class Program
 {
-    // Application entry using Visitor pattern
     static void Main(string[] args)
     {
-        // Locate the folder with test code files
-        string TestProgrammesFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "TestProgrammes");
-        TestProgrammesFolder = Path.GetFullPath(TestProgrammesFolder);
+        string testFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "TestProgrammes");
+        testFolder = Path.GetFullPath(testFolder);
 
-        // Create output folder for compiled executables
-        string OutputFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Output");
-        OutputFolder = Path.GetFullPath(OutputFolder);
-        if (!Directory.Exists(OutputFolder))
-            Directory.CreateDirectory(OutputFolder);
+        string outputFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "Output");
+        outputFolder = Path.GetFullPath(outputFolder);
+        Directory.CreateDirectory(outputFolder);
 
-        // Create the folder if it doesn't exist
-        if (!Directory.Exists(TestProgrammesFolder))
+        if (!Directory.Exists(testFolder))
         {
-            Console.WriteLine($"Error: Folder '{TestProgrammesFolder}' not found!");
-            Directory.CreateDirectory(TestProgrammesFolder);
-            Console.WriteLine("Please add test files and run again.");
+            Console.WriteLine($"Error: '{testFolder}' not found!");
             return;
         }
 
-        // Get test files (*.ob); fallback: all files if none found
-        string[] testFiles = Directory.GetFiles(TestProgrammesFolder, "*.ob").ToArray();
-        if (testFiles.Length == 0)
-            testFiles = Directory.GetFiles(TestProgrammesFolder);
+        string[] testFiles = Directory.GetFiles(testFolder, "*.ob");
         if (testFiles.Length == 0)
         {
-            Console.WriteLine($"No test files found in '{TestProgrammesFolder}' folder!");
+            Console.WriteLine($"No .ob files in '{testFolder}'");
             return;
         }
 
-        Console.WriteLine($"Found {testFiles.Length} test file(s)\n");
+        Console.WriteLine($"Processing {testFiles.Length} file(s)...\n");
 
-        // Parse and analyze all test files in the directory
         foreach (var filePath in testFiles)
         {
             string fileName = Path.GetFileName(filePath);
             string baseName = Path.GetFileNameWithoutExtension(filePath);
 
-            Console.WriteLine($"\n{'=',70}");
-            Console.WriteLine($"Processing file: {fileName}");
-            Console.WriteLine($"{'=',70}\n");
+            Console.WriteLine();
+            Console.WriteLine("====================================");
+            Console.WriteLine($"File: {fileName}");
+            Console.WriteLine("====================================");
 
             try
             {
                 string code = File.ReadAllText(filePath);
-                Console.WriteLine("--- Source Code ---\n" + code);
+                var tree = ParseCode(code, out var errors, out var parser);
 
-                var result = ParseCode(code);
-                Console.WriteLine($"\n✓ Syntax valid: {result.IsValid}");
-
-                if (!result.IsValid)
+                if (errors.Count > 0)
                 {
-                    Console.WriteLine("✗ Parse failed (syntax errors found)");
-                    foreach (var err in result.Errors)
-                        Console.WriteLine($"  ERROR: {err}");
+                    Console.WriteLine("Syntax errors:");
+                    errors.ForEach(e => Console.WriteLine($"  {e}"));
                     continue;
                 }
 
-                Console.WriteLine($"✓ Variables found: {string.Join(", ", result.Variables)}");
+                Console.WriteLine("Syntax valid");
 
-                // Run semantic analysis using VISITOR pattern
-                var semanticVisitor = new SemanticVisitor();
-                semanticVisitor.Visit(result.Tree);
+                // Display parse tree
+                Console.WriteLine("\n--- Parse Tree ---");
+                Console.WriteLine(tree.ToStringTree(parser));
+                Console.WriteLine("------------------\n");
 
-                if (semanticVisitor.Errors.Any())
+                var semanticAnalyzer = new SemanticAnalyzer();
+                semanticAnalyzer.Visit(tree);
+
+                if (semanticAnalyzer.Errors.Any())
                 {
-                    Console.WriteLine("\n✗ Semantic errors found:");
-                    foreach (var err in semanticVisitor.Errors)
-                        Console.WriteLine($"  ERROR: {err}");
+                    Console.WriteLine("Semantic errors:");
+                    semanticAnalyzer.Errors.ForEach(e => Console.WriteLine($"  {e}"));
                     continue;
                 }
 
-                Console.WriteLine("✓ Semantic analysis successful");
+                Console.WriteLine("Semantics valid");
 
-                // Generate LLVM IR using VISITOR pattern
-                Console.WriteLine("\n--- Generating LLVM IR ---");
-                var moduleContext = ((Oberon0Parser.FileContext)result.Tree).module();
+                var moduleContext = ((Oberon0Parser.FileContext)tree).module();
                 string moduleName = moduleContext.ID(0).GetText();
 
                 var codeVisitor = new LLVMCodeVisitor(moduleName);
-                codeVisitor.Visit(result.Tree);
+                codeVisitor.Visit(tree);
                 codeVisitor.CreateMainFunction();
 
-                // Save LLVM IR to file
-                string llvmFile = Path.Combine(OutputFolder, $"{baseName}.ll");
-                codeVisitor.WriteToFile(llvmFile);
-                Console.WriteLine($"✓ LLVM IR written to: {llvmFile}");
-
-                // Display generated IR
-                Console.WriteLine("\n--- Generated LLVM IR (preview) ---");
-                string ir = codeVisitor.GetIR();
-                var irLines = ir.Split('\n').Take(30);
-                foreach (var line in irLines)
-                    Console.WriteLine(line);
-                if (ir.Split('\n').Length > 30)
-                    Console.WriteLine("... (truncated) ...");
-
-                // Compile to executable using clang
-                Console.WriteLine("\n--- Compiling to executable ---");
-                string exeExtension = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "";
-                string exeFile = Path.Combine(OutputFolder, baseName + exeExtension);
+                string llvmFile = Path.Combine(outputFolder, $"{baseName}.ll");
+                string exeFile = Path.Combine(outputFolder, baseName + GetExeExtension());
                 if (CompileToExecutable(llvmFile, exeFile))
-                {
-                    Console.WriteLine($"✓ Executable created: {exeFile}");
-                    Console.WriteLine($"\nRun with: {exeFile}");
-                }
+                    Console.WriteLine($"Executable created: {exeFile}");
                 else
-                {
-                    Console.WriteLine("✗ Compilation failed (is clang installed?)");
-                }
+                    Console.WriteLine("Compilation failed (clang required)");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"\n✗ Error: {ex.Message}");
-                Console.WriteLine(ex.StackTrace);
+                Console.WriteLine($"Error: {ex.Message}");
             }
-
-            Console.WriteLine($"\n{'-',70}\n");
         }
 
-        Console.WriteLine("\n✓ All files processed!");
-        Console.WriteLine($"\nCompiled outputs are in: {OutputFolder}");
+        Console.WriteLine($"\nDone! Output: {outputFolder}");
     }
 
-    // Parses Oberon code using Visitor pattern
-    static ParseResult ParseCode(string input)
+    static Oberon0Parser.FileContext ParseCode(string input, out List<string> errors, out Oberon0Parser parser)
     {
-        var inputStream = new AntlrInputStream(input);
-        var lexer = new Oberon0Lexer(inputStream);
-        var tokenStream = new CommonTokenStream(lexer);
-        var parser = new Oberon0Parser(tokenStream);
+        var lexer = new Oberon0Lexer(new AntlrInputStream(input));
+        parser = new Oberon0Parser(new CommonTokenStream(lexer));
 
+        var errorList = new List<string>();
         parser.RemoveErrorListeners();
-        var errorListener = new ErrorListener();
-        parser.AddErrorListener(errorListener);
+        parser.AddErrorListener(new CustomErrorListener(errorList));
 
-        var variableTracker = new VariableTracker();
-        var visitor = new Oberon0VariableVisitor(variableTracker);
-
-        var tree = parser.file();
-        
-        // Use visitor pattern for tree traversal
-        visitor.Visit(tree);
-
-        return new ParseResult
-        {
-            IsValid = parser.NumberOfSyntaxErrors == 0,
-            Variables = variableTracker.GetVariables(),
-            ParseTree = tree.ToStringTree(parser),
-            Errors = errorListener.Errors,
-            Tree = tree
-        };
+        errors = errorList;
+        return parser.file();
     }
 
-    // Compile LLVM IR to native executable using clang
     static bool CompileToExecutable(string llvmFile, string outputFile)
     {
         try
@@ -183,89 +122,33 @@ class Program
                 }
             };
 
-            // On Windows, we need to set up the library paths for x64 linking
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                // Find Visual Studio and Windows SDK paths
-                string vsPath = FindVisualStudioPath();
-                string winSdkPath = FindWindowsSdkPath();
-                
-                if (!string.IsNullOrEmpty(vsPath) && !string.IsNullOrEmpty(winSdkPath))
-                {
-                    string libPath = $"{vsPath};{winSdkPath}\\ucrt\\x64;{winSdkPath}\\um\\x64";
-                    process.StartInfo.EnvironmentVariables["LIB"] = libPath;
-                }
-            }
-
             process.Start();
-            string output = process.StandardOutput.ReadToEnd();
-            string error = process.StandardError.ReadToEnd();
             process.WaitForExit();
-
-            if (process.ExitCode != 0)
-            {
-                Console.WriteLine($"Clang error: {error}");
-                return false;
-            }
-
-            return File.Exists(outputFile);
+            return process.ExitCode == 0 && File.Exists(outputFile);
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine($"Compilation error: {ex.Message}");
             return false;
         }
     }
 
-    // Find Visual Studio MSVC library path
-    static string FindVisualStudioPath()
+    static string GetExeExtension() =>
+        System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+            System.Runtime.InteropServices.OSPlatform.Windows) ? ".exe" : "";
+}
+
+class CustomErrorListener : BaseErrorListener
+{
+    private readonly List<string> errors;
+
+    public CustomErrorListener(List<string> errors)
     {
-        try
-        {
-            string basePath = @"C:\Program Files\Microsoft Visual Studio\2022";
-            string[] editions = { "Community", "Professional", "Enterprise" };
-            
-            foreach (var edition in editions)
-            {
-                string vcPath = Path.Combine(basePath, edition, "VC", "Tools", "MSVC");
-                if (Directory.Exists(vcPath))
-                {
-                    var versions = Directory.GetDirectories(vcPath);
-                    if (versions.Length > 0)
-                    {
-                        // Get the latest version
-                        var latestVersion = versions.OrderByDescending(v => v).First();
-                        string libPath = Path.Combine(latestVersion, "lib", "x64");
-                        if (Directory.Exists(libPath))
-                        {
-                            return libPath;
-                        }
-                    }
-                }
-            }
-        }
-        catch { }
-        return "";
+        this.errors = errors;
     }
 
-    // Find Windows SDK library path
-    static string FindWindowsSdkPath()
+    public override void SyntaxError(TextWriter output, IRecognizer recognizer, IToken offendingSymbol,
+                                     int line, int charPositionInLine, string msg, RecognitionException e)
     {
-        try
-        {
-            string basePath = @"C:\Program Files (x86)\Windows Kits\10\Lib";
-            if (Directory.Exists(basePath))
-            {
-                var versions = Directory.GetDirectories(basePath);
-                if (versions.Length > 0)
-                {
-                    // Get the latest version
-                    var latestVersion = versions.OrderByDescending(v => v).First();
-                    return latestVersion;
-                }
-            }
-        }
-        catch { }
-        return "";
+        errors.Add($"Line {line}:{charPositionInLine} - {msg}");
     }
 }

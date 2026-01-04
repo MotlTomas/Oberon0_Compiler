@@ -1,5 +1,4 @@
 MODULE TypesDemo;
-
 VAR
     i: INTEGER;
     r: REAL;

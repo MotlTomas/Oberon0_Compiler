@@ -47,7 +47,7 @@ ParseResult.cs                   - Parse result data structure
 
 To generate parser/lexer/visitor C# targets from the `.g4` grammar file, run:
 
-	java -jar Tools/antlr-4.13.2-complete.jar -Dlanguage=CSharp -o Generated Grammar/Oberon0.g4
+    java -jar Tools/antlr-4.13.2-complete.jar -Dlanguage=CSharp -no-listener -visitor -o Generated Grammar/Oberon0.g4
 
 - Ensure grammar files are referenced correctly (e.g., `Grammar/Oberon0.g4`)
 - The generated `.cs` files will appear in the `Generated` folder

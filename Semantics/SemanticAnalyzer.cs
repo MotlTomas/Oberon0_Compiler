@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Antlr4.Runtime.Misc;
 
 namespace Compiler.Semantics
@@ -7,7 +6,7 @@ namespace Compiler.Semantics
     /// Semantic analyzer using Visitor pattern instead of Listener pattern
     /// Provides better control flow and ability to return values from visits
     /// </summary>
-    public class SemanticVisitor : Oberon0BaseVisitor<object>
+    public class SemanticAnalyzer : Oberon0BaseVisitor<object>
     {
         // Global symbol table
         private readonly SymbolTable globalSymbols = new();

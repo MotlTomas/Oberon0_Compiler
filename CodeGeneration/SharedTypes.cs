@@ -1,5 +1,5 @@
 using LLVMSharp.Interop;
-using System.Collections.Generic;
+using System;
 
 namespace Compiler.CodeGeneration
 {

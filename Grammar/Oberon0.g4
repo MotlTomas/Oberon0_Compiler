@@ -168,5 +168,6 @@ INTEGER_LITERAL : [0-9]+ ;
 REAL_LITERAL : [0-9]+ '.' [0-9]+ ;
 STRING_LITERAL : '"' (~["\r\n])* '"' ;
 ID : [a-zA-Z_] [a-zA-Z_0-9]* ;
+COMMENT : '(*' .*? '*)' -> skip ;
 EXTERNAL : 'EXTERNAL' ;
 WS : [ \t\r\n]+ -> skip ;
