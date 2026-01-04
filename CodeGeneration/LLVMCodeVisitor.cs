@@ -20,6 +20,10 @@ namespace Compiler.CodeGeneration
         private readonly Stack<Dictionary<string, Variable>> scopes = new();
         private readonly Dictionary<string, Variable> globalVars = new();
         private readonly Dictionary<string, Function> functions = new();
+        
+        // Type registry for user-defined types (e.g., IntMatrix = ARRAY 2, 2 OF INTEGER)
+        private readonly Dictionary<string, LLVMTypeRef> userTypes = new();
+        private readonly Dictionary<string, Oberon0Parser.TypeContext> userTypeContexts = new();
 
         // Current context
         private Function? currentFunction = null;
@@ -37,8 +41,8 @@ namespace Compiler.CodeGeneration
             module = LLVMModuleRef.CreateWithName(moduleName);
             builder = module.Context.CreateBuilder();
 
-            // Set target triple
-            module.Target = "x86_64-pc-linux-gnu";
+            // Set target triple for Windows MSVC
+            module.Target = "x86_64-pc-windows-msvc";
 
             InitializeBuiltIns();
         }
@@ -160,6 +164,44 @@ namespace Compiler.CodeGeneration
             return default;
         }
 
+        public override LLVMValueRef VisitDeclarations([NotNull] Oberon0Parser.DeclarationsContext context)
+        {
+            // Process TYPE declarations first
+            foreach (var typeDecl in context.typeDecl())
+            {
+                Visit(typeDecl);
+            }
+            
+            // Process VAR declarations
+            foreach (var varDecl in context.varDecl())
+            {
+                Visit(varDecl);
+            }
+            
+            // Process PROCEDURE declarations
+            foreach (var procDecl in context.procDecl())
+            {
+                Visit(procDecl);
+            }
+            
+            return default;
+        }
+
+        public override LLVMValueRef VisitTypeDecl([NotNull] Oberon0Parser.TypeDeclContext context)
+        {
+            string typeName = context.ID().GetText();
+            var typeContext = context.type();
+            
+            // Store the type context for later resolution
+            userTypeContexts[typeName] = typeContext;
+            
+            // Create the LLVM type
+            var llvmType = GetLLVMType(typeContext);
+            userTypes[typeName] = llvmType;
+            
+            return default;
+        }
+
         public override LLVMValueRef VisitVarDecl([NotNull] Oberon0Parser.VarDeclContext context)
         {
             var llvmType = GetLLVMType(context.type());
@@ -220,23 +262,29 @@ namespace Compiler.CodeGeneration
             // Build parameter types
             var paramTypes = new List<LLVMTypeRef>();
             var paramNames = new List<string>();
+            var paramIsByRef = new List<bool>();
+            var paramBaseTypes = new List<LLVMTypeRef>();  // Store base type for arrays
 
             if (heading.formalParameters() != null)
             {
                 foreach (var fp in heading.formalParameters().fpSection())
                 {
-                    var paramType = GetLLVMType(fp.type());
+                    var baseType = GetLLVMType(fp.type());
                     bool isByRef = fp.ChildCount > 0 && fp.GetChild(0).GetText() == "VAR";
-
-                    if (isByRef)
+                    
+                    // Arrays and VAR parameters are passed by pointer
+                    var paramType = baseType;
+                    if (isByRef || baseType.Kind == LLVMTypeKind.LLVMArrayTypeKind)
                     {
-                        paramType = LLVMTypeRef.CreatePointer(paramType, 0);
+                        paramType = LLVMTypeRef.CreatePointer(baseType, 0);
                     }
 
                     foreach (var id in fp.identList().ID())
                     {
                         paramTypes.Add(paramType);
                         paramNames.Add(id.GetText());
+                        paramIsByRef.Add(isByRef || baseType.Kind == LLVMTypeKind.LLVMArrayTypeKind);
+                        paramBaseTypes.Add(baseType);
                     }
                 }
             }
@@ -251,7 +299,8 @@ namespace Compiler.CodeGeneration
                 Value = func,
                 FunctionType = funcType,
                 ReturnType = returnType,
-                Parameters = paramNames
+                Parameters = paramNames,
+                ParameterTypes = paramTypes
             };
 
             // Save context (including current insert block for nested procedures)
@@ -273,31 +322,35 @@ namespace Compiler.CodeGeneration
             scopes.Push(localScope);
 
             // Allocate and store parameters
-            for (uint i = 0; i < paramNames.Count; i++)
+            for (int i = 0; i < paramNames.Count; i++)
             {
-                var param = func.GetParam(i);
-                var paramType = paramTypes[(int)i];
+                var param = func.GetParam((uint)i);
+                var paramType = paramTypes[i];
+                var baseType = paramBaseTypes[i];
+                bool isByRef = paramIsByRef[i];
 
-                if (paramType.Kind != LLVMTypeKind.LLVMPointerTypeKind)
+                if (isByRef)
                 {
-                    var alloca = builder.BuildAlloca(paramType, $"{paramNames[(int)i]}.addr");
-                    builder.BuildStore(param, alloca);
-
-                    localScope[paramNames[(int)i]] = new Variable
+                    // For VAR parameters and arrays, the parameter is already a pointer
+                    localScope[paramNames[i]] = new Variable
                     {
-                        Name = paramNames[(int)i],
-                        Value = alloca,
-                        Type = paramType
+                        Name = paramNames[i],
+                        Value = param,
+                        Type = baseType,
+                        IsByRef = true
                     };
                 }
                 else
                 {
-                    localScope[paramNames[(int)i]] = new Variable
+                    // Value parameter - allocate and copy
+                    var alloca = builder.BuildAlloca(paramType, $"{paramNames[i]}.addr");
+                    builder.BuildStore(param, alloca);
+
+                    localScope[paramNames[i]] = new Variable
                     {
-                        Name = paramNames[(int)i],
-                        Value = param,
-                        Type = paramType.ElementType,
-                        IsByRef = true
+                        Name = paramNames[i],
+                        Value = alloca,
+                        Type = paramType
                     };
                 }
             }
@@ -305,22 +358,27 @@ namespace Compiler.CodeGeneration
             // Visit procedure body
             Visit(context.procBody());
 
-            // Add default return if needed
+            // Add default return to any basic blocks without terminators
             if (currentFunction != null)
             {
-                var lastBlock = currentFunction.Value.LastBasicBlock;
-                if (lastBlock.Handle != IntPtr.Zero && lastBlock.Terminator.Handle == IntPtr.Zero)
+                // Iterate through all basic blocks and add terminators where missing
+                var block = currentFunction.Value.FirstBasicBlock;
+                while (block.Handle != IntPtr.Zero)
                 {
-                    builder.PositionAtEnd(lastBlock);
+                    if (block.Terminator.Handle == IntPtr.Zero)
+                    {
+                        builder.PositionAtEnd(block);
 
-                    if (currentFunction.ReturnType.Kind == LLVMTypeKind.LLVMVoidTypeKind)
-                    {
-                        builder.BuildRetVoid();
+                        if (currentFunction.ReturnType.Kind == LLVMTypeKind.LLVMVoidTypeKind)
+                        {
+                            builder.BuildRetVoid();
+                        }
+                        else
+                        {
+                            builder.BuildRet(LLVMValueRef.CreateConstNull(currentFunction.ReturnType));
+                        }
                     }
-                    else
-                    {
-                        builder.BuildRet(LLVMValueRef.CreateConstNull(currentFunction.ReturnType));
-                    }
+                    block = block.Next;
                 }
             }
 
@@ -430,8 +488,29 @@ namespace Compiler.CodeGeneration
                 throw new Exception($"Variable not found: {varName}");
             }
 
+            // Check for array element assignment
+            var selectors = designator.selector();
+            if (selectors != null && selectors.Length > 0)
+            {
+                return StoreArrayElement(variable, selectors, context.expression());
+            }
+
             // Evaluate expression
             var exprValue = Visit(context.expression());
+
+            // Check if this is an array assignment (res := mat)
+            if (variable.Type.Kind == LLVMTypeKind.LLVMArrayTypeKind)
+            {
+                // For array assignment, we need to copy the entire array
+                // Get the source array pointer
+                var sourceVar = GetSourceVariable(context.expression());
+                if (sourceVar != null && sourceVar.Type.Kind == LLVMTypeKind.LLVMArrayTypeKind)
+                {
+                    // Use memcpy for array copy
+                    CopyArray(variable, sourceVar);
+                    return default;
+                }
+            }
 
             // Type conversion if needed
             if (exprValue.TypeOf != variable.Type)
@@ -442,6 +521,117 @@ namespace Compiler.CodeGeneration
             // Store value
             builder.BuildStore(exprValue, variable.Value);
             return default;
+        }
+
+        private LLVMValueRef StoreArrayElement(Variable variable, Oberon0Parser.SelectorContext[] selectors, Oberon0Parser.ExpressionContext expr)
+        {
+            // Handle array element assignment: a[i, j] := value
+            var indices = new List<LLVMValueRef>();
+            
+            // First index is always 0 for GEP into the array
+            indices.Add(LLVMValueRef.CreateConstInt(LLVMTypeRef.Int64, 0));
+            
+            foreach (var selector in selectors)
+            {
+                // Check if this is an array index selector [...]
+                var exprList = selector.expressionList();
+                if (exprList != null)
+                {
+                    foreach (var indexExpr in exprList.expression())
+                    {
+                        var indexValue = Visit(indexExpr);
+                        // Ensure index is i64
+                        if (indexValue.TypeOf != LLVMTypeRef.Int64)
+                        {
+                            indexValue = ConvertType(indexValue, LLVMTypeRef.Int64);
+                        }
+                        indices.Add(indexValue);
+                    }
+                }
+            }
+            
+            // Build GEP to get pointer to element
+            var elementPtr = builder.BuildInBoundsGEP2(variable.Type, variable.Value, indices.ToArray(), "arrayidx");
+            
+            // Determine element type
+            var elementType = GetArrayElementType(variable.Type, indices.Count - 1);
+            
+            // Evaluate expression and store
+            var value = Visit(expr);
+            if (value.TypeOf != elementType)
+            {
+                value = ConvertType(value, elementType);
+            }
+            
+            builder.BuildStore(value, elementPtr);
+            return default;
+        }
+
+        private Variable? GetSourceVariable(Oberon0Parser.ExpressionContext expr)
+        {
+            // Try to extract variable from simple expression
+            try
+            {
+                var simpleExpr = expr.simpleExpression(0);
+                var term = simpleExpr.term(0);
+                var factor = term.factor(0);
+                var designator = factor.designator();
+                if (designator != null)
+                {
+                    return LookupVariable(designator.ID().GetText());
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        private void CopyArray(Variable dest, Variable source)
+        {
+            // Calculate array size
+            var arrayType = dest.Type;
+            ulong arraySize = GetTypeSize(arrayType);
+            
+            // Get base pointers as i8*
+            var destPtr = builder.BuildBitCast(dest.Value, LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), "dest.ptr");
+            var srcPtr = builder.BuildBitCast(source.Value, LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0), "src.ptr");
+            
+            // Use C library memcpy instead of LLVM intrinsic
+            var memcpyType = LLVMTypeRef.CreateFunction(
+                LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),  // returns void*
+                new[] { 
+                    LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),  // dest
+                    LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),  // src
+                    LLVMTypeRef.Int64  // size
+                });
+            
+            var memcpy = module.GetNamedFunction("memcpy");
+            if (memcpy.Handle == IntPtr.Zero)
+            {
+                memcpy = module.AddFunction("memcpy", memcpyType);
+            }
+            
+            builder.BuildCall2(memcpyType, memcpy, new[] {
+                destPtr,
+                srcPtr,
+                LLVMValueRef.CreateConstInt(LLVMTypeRef.Int64, arraySize)
+            });
+        }
+
+        private ulong GetTypeSize(LLVMTypeRef type)
+        {
+            if (type.Kind == LLVMTypeKind.LLVMIntegerTypeKind)
+            {
+                return type.IntWidth / 8;
+            }
+            else if (type.Kind == LLVMTypeKind.LLVMDoubleTypeKind)
+            {
+                return 8;
+            }
+            else if (type.Kind == LLVMTypeKind.LLVMArrayTypeKind)
+            {
+                return type.ArrayLength * GetTypeSize(type.ElementType);
+            }
+            return 8; // Default
         }
 
         public override LLVMValueRef VisitProcedureCall([NotNull] Oberon0Parser.ProcedureCallContext context)
@@ -470,8 +660,24 @@ namespace Compiler.CodeGeneration
             var args = new List<LLVMValueRef>();
             if (context.expressionList() != null)
             {
-                foreach (var expr in context.expressionList().expression())
+                var expressions = context.expressionList().expression();
+                for (int i = 0; i < expressions.Length; i++)
                 {
+                    var expr = expressions[i];
+                    var paramType = func.ParameterTypes[i];
+                    
+                    // Check if parameter expects a pointer (VAR parameter or array)
+                    if (paramType.Kind == LLVMTypeKind.LLVMPointerTypeKind)
+                    {
+                        // Get the variable directly and pass its address
+                        var sourceVar = GetSourceVariable(expr);
+                        if (sourceVar != null)
+                        {
+                            args.Add(sourceVar.Value);
+                            continue;
+                        }
+                    }
+                    
                     args.Add(Visit(expr));
                 }
             }
@@ -884,10 +1090,67 @@ namespace Compiler.CodeGeneration
                     throw new Exception($"Variable not found: {varName}");
                 }
 
+                // Check for array access with selectors
+                var selectors = designator.selector();
+                if (selectors != null && selectors.Length > 0)
+                {
+                    return LoadArrayElement(variable, selectors);
+                }
+
                 return builder.BuildLoad2(variable.Type, variable.Value, varName);
             }
 
             throw new Exception("Unknown factor type");
+        }
+
+        private LLVMValueRef LoadArrayElement(Variable variable, Oberon0Parser.SelectorContext[] selectors)
+        {
+            // Handle array element access: a[i, j] or a[i][j]
+            var indices = new List<LLVMValueRef>();
+            
+            // First index is always 0 for GEP into the array
+            indices.Add(LLVMValueRef.CreateConstInt(LLVMTypeRef.Int64, 0));
+            
+            foreach (var selector in selectors)
+            {
+                // Check if this is an array index selector [...]
+                var exprList = selector.expressionList();
+                if (exprList != null)
+                {
+                    foreach (var expr in exprList.expression())
+                    {
+                        var indexValue = Visit(expr);
+                        // Ensure index is i64
+                        if (indexValue.TypeOf != LLVMTypeRef.Int64)
+                        {
+                            indexValue = ConvertType(indexValue, LLVMTypeRef.Int64);
+                        }
+                        indices.Add(indexValue);
+                    }
+                }
+            }
+            
+            // Build GEP to get pointer to element
+            var elementPtr = builder.BuildInBoundsGEP2(variable.Type, variable.Value, indices.ToArray(), "arrayidx");
+            
+            // Determine element type by stripping array dimensions
+            var elementType = GetArrayElementType(variable.Type, indices.Count - 1);
+            
+            // Load the element
+            return builder.BuildLoad2(elementType, elementPtr, "elem");
+        }
+
+        private LLVMTypeRef GetArrayElementType(LLVMTypeRef arrayType, int numIndices)
+        {
+            var currentType = arrayType;
+            for (int i = 0; i < numIndices; i++)
+            {
+                if (currentType.Kind == LLVMTypeKind.LLVMArrayTypeKind)
+                {
+                    currentType = currentType.ElementType;
+                }
+            }
+            return currentType;
         }
 
         public override LLVMValueRef VisitLiteral([NotNull] Oberon0Parser.LiteralContext context)
@@ -931,8 +1194,24 @@ namespace Compiler.CodeGeneration
             var args = new List<LLVMValueRef>();
             if (exprList != null)
             {
-                foreach (var expr in exprList.expression())
+                var expressions = exprList.expression();
+                for (int i = 0; i < expressions.Length; i++)
                 {
+                    var expr = expressions[i];
+                    var paramType = func.ParameterTypes[i];
+                    
+                    // Check if parameter expects a pointer (VAR parameter or array)
+                    if (paramType.Kind == LLVMTypeKind.LLVMPointerTypeKind)
+                    {
+                        // Get the variable directly and pass its address
+                        var sourceVar = GetSourceVariable(expr);
+                        if (sourceVar != null)
+                        {
+                            args.Add(sourceVar.Value);
+                            continue;
+                        }
+                    }
+                    
                     args.Add(Visit(expr));
                 }
             }
@@ -953,6 +1232,21 @@ namespace Compiler.CodeGeneration
                 {
                     left = ConvertType(left, LLVMTypeRef.Double);
                     right = ConvertType(right, LLVMTypeRef.Double);
+                }
+                else if (left.TypeOf.Kind == LLVMTypeKind.LLVMIntegerTypeKind && right.TypeOf.Kind == LLVMTypeKind.LLVMIntegerTypeKind)
+                {
+                    // Promote to the larger integer type (default to i64 for safety)
+                    var targetType = LLVMTypeRef.Int64;
+                    if (left.TypeOf.IntWidth > right.TypeOf.IntWidth)
+                    {
+                        targetType = left.TypeOf;
+                    }
+                    else if (right.TypeOf.IntWidth > left.TypeOf.IntWidth)
+                    {
+                        targetType = right.TypeOf;
+                    }
+                    left = ConvertType(left, targetType);
+                    right = ConvertType(right, targetType);
                 }
             }
 
@@ -1119,15 +1413,78 @@ namespace Compiler.CodeGeneration
 
         private LLVMTypeRef GetLLVMType(Oberon0Parser.TypeContext context)
         {
+            // Check for basic types first
             string typeText = context.GetText();
-            return typeText switch
+            
+            // Handle basic types
+            if (typeText == "INTEGER") return LLVMTypeRef.Int64;
+            if (typeText == "REAL") return LLVMTypeRef.Double;
+            if (typeText == "BOOLEAN") return LLVMTypeRef.Int1;
+            if (typeText == "STRING") return LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0);
+            
+            // Check if it's an ARRAY type
+            if (context.ChildCount > 0 && context.GetChild(0).GetText() == "ARRAY")
             {
-                "INTEGER" => LLVMTypeRef.Int64,
-                "REAL" => LLVMTypeRef.Double,
-                "BOOLEAN" => LLVMTypeRef.Int1,
-                "STRING" => LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0),
-                _ => LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0)
-            };
+                return CreateArrayType(context);
+            }
+            
+            // Check if it's a user-defined type name (like IntMatrix)
+            if (userTypes.TryGetValue(typeText, out var userType))
+            {
+                return userType;
+            }
+            
+            // Check if type context is stored (for forward references)
+            if (userTypeContexts.TryGetValue(typeText, out var storedContext))
+            {
+                var llvmType = GetLLVMType(storedContext);
+                userTypes[typeText] = llvmType;
+                return llvmType;
+            }
+            
+            // Default fallback
+            return LLVMTypeRef.CreatePointer(LLVMTypeRef.Int8, 0);
+        }
+
+        private LLVMTypeRef CreateArrayType(Oberon0Parser.TypeContext context)
+        {
+            // ARRAY expression (',' expression)* OF type
+            // Get dimensions from expressions
+            var dimensions = new List<uint>();
+            var expressions = context.expression();
+            
+            foreach (var expr in expressions)
+            {
+                // Evaluate constant expression for array dimension
+                uint dim = EvaluateConstantExpression(expr);
+                dimensions.Add(dim);
+            }
+            
+            // Get element type (the type after OF)
+            var elementTypeContext = context.type();
+            var elementType = GetLLVMType(elementTypeContext);
+            
+            // Build nested array type from innermost to outermost
+            // ARRAY 2, 2 OF INTEGER -> [2 x [2 x i64]]
+            var resultType = elementType;
+            for (int i = dimensions.Count - 1; i >= 0; i--)
+            {
+                resultType = LLVMTypeRef.CreateArray(resultType, dimensions[i]);
+            }
+            
+            return resultType;
+        }
+
+        private uint EvaluateConstantExpression(Oberon0Parser.ExpressionContext context)
+        {
+            // Simple constant evaluation for array dimensions
+            var text = context.GetText();
+            if (uint.TryParse(text, out uint value))
+            {
+                return value;
+            }
+            // Default to 1 if we can't evaluate
+            return 1;
         }
 
         private LLVMValueRef ConvertType(LLVMValueRef value, LLVMTypeRef targetType)
@@ -1149,7 +1506,7 @@ namespace Compiler.CodeGeneration
             else if (fromKind == LLVMTypeKind.LLVMIntegerTypeKind && toKind == LLVMTypeKind.LLVMIntegerTypeKind)
             {
                 if (value.TypeOf.IntWidth < targetType.IntWidth)
-                    return builder.BuildZExt(value, targetType, "zext");
+                    return builder.BuildSExt(value, targetType, "sext");  // Use sign extension for signed integers
                 else if (value.TypeOf.IntWidth > targetType.IntWidth)
                     return builder.BuildTrunc(value, targetType, "trunc");
             }

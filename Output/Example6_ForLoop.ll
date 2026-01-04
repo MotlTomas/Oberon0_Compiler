@@ -1,6 +1,6 @@
 ; ModuleID = 'ForLoopTest'
 source_filename = "ForLoopTest"
-target triple = "x86_64-pc-linux-gnu"
+target triple = "x86_64-pc-windows-msvc"
 
 @i = global i64 0
 @sum = global i64 0

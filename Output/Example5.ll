@@ -1,6 +1,6 @@
 ; ModuleID = 'NestedProcTest'
 source_filename = "NestedProcTest"
-target triple = "x86_64-pc-linux-gnu"
+target triple = "x86_64-pc-windows-msvc"
 
 @result = global i64 0
 @.str = private unnamed_addr constant [20 x i8] c"Result of Outer(5):\00", align 1

@@ -1,6 +1,6 @@
 ; ModuleID = 'TypesDemo'
 source_filename = "TypesDemo"
-target triple = "x86_64-pc-linux-gnu"
+target triple = "x86_64-pc-windows-msvc"
 
 @i = global i64 0
 @r = global double 0.000000e+00

@@ -183,6 +183,20 @@ class Program
                 }
             };
 
+            // On Windows, we need to set up the library paths for x64 linking
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                // Find Visual Studio and Windows SDK paths
+                string vsPath = FindVisualStudioPath();
+                string winSdkPath = FindWindowsSdkPath();
+                
+                if (!string.IsNullOrEmpty(vsPath) && !string.IsNullOrEmpty(winSdkPath))
+                {
+                    string libPath = $"{vsPath};{winSdkPath}\\ucrt\\x64;{winSdkPath}\\um\\x64";
+                    process.StartInfo.EnvironmentVariables["LIB"] = libPath;
+                }
+            }
+
             process.Start();
             string output = process.StandardOutput.ReadToEnd();
             string error = process.StandardError.ReadToEnd();
@@ -201,5 +215,57 @@ class Program
             Console.WriteLine($"Compilation error: {ex.Message}");
             return false;
         }
+    }
+
+    // Find Visual Studio MSVC library path
+    static string FindVisualStudioPath()
+    {
+        try
+        {
+            string basePath = @"C:\Program Files\Microsoft Visual Studio\2022";
+            string[] editions = { "Community", "Professional", "Enterprise" };
+            
+            foreach (var edition in editions)
+            {
+                string vcPath = Path.Combine(basePath, edition, "VC", "Tools", "MSVC");
+                if (Directory.Exists(vcPath))
+                {
+                    var versions = Directory.GetDirectories(vcPath);
+                    if (versions.Length > 0)
+                    {
+                        // Get the latest version
+                        var latestVersion = versions.OrderByDescending(v => v).First();
+                        string libPath = Path.Combine(latestVersion, "lib", "x64");
+                        if (Directory.Exists(libPath))
+                        {
+                            return libPath;
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+        return "";
+    }
+
+    // Find Windows SDK library path
+    static string FindWindowsSdkPath()
+    {
+        try
+        {
+            string basePath = @"C:\Program Files (x86)\Windows Kits\10\Lib";
+            if (Directory.Exists(basePath))
+            {
+                var versions = Directory.GetDirectories(basePath);
+                if (versions.Length > 0)
+                {
+                    // Get the latest version
+                    var latestVersion = versions.OrderByDescending(v => v).First();
+                    return latestVersion;
+                }
+            }
+        }
+        catch { }
+        return "";
     }
 }

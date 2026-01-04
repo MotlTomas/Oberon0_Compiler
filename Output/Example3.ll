@@ -1,6 +1,6 @@
 ; ModuleID = 'ControlDemo'
 source_filename = "ControlDemo"
-target triple = "x86_64-pc-linux-gnu"
+target triple = "x86_64-pc-windows-msvc"
 
 @n = global i64 0
 @result = global i64 0

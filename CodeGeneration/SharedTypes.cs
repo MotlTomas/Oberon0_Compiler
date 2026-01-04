@@ -24,6 +24,7 @@ namespace Compiler.CodeGeneration
         public LLVMTypeRef FunctionType { get; set; }
         public LLVMTypeRef ReturnType { get; set; }
         public List<string> Parameters { get; set; } = new();
+        public List<LLVMTypeRef> ParameterTypes { get; set; } = new();
     }
 
     internal class LoopContext
