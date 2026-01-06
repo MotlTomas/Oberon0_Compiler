@@ -1,40 +1,45 @@
-MODULE TypesDemo;
+(* Example 1: Basic Types, Variables, Expressions, and I/O *)
+MODULE BasicTypes;
 VAR
-    i: INTEGER;
+    i, j: INTEGER;
     r: REAL;
     b: BOOLEAN;
     s: STRING;
 
-PROCEDURE IntToReal(x: INTEGER): REAL;
 BEGIN
-    RETURN x
-END IntToReal;
+    (* INTEGER arithmetic: +, -, *, DIV, MOD *)
+    i := 10;
+    j := 5;
+    WRITELN(i + j);       (* 15 *)
+    WRITELN(i - j);       (* 5 *)
+    WRITELN(i * j);       (* 50 *)
+    WRITELN(i DIV j);     (* 2 *)
+    WRITELN(i MOD j);     (* 0 *)
+    
+    (* REAL arithmetic: +, -, *, / *)
+    r := 3.5;
+    WRITELN(r * 2.0);     (* 7.0 *)
+    WRITELN(10.0 / r);    (* ~2.857 *)
+    
+    (* Unary minus *)
+    i := -i;
+    WRITELN(i);           (* -10 *)
+    
+    (* BOOLEAN and comparisons *)
+    b := TRUE;
+    b := 5 < 10;          (* TRUE *)
+    b := 5 = 5;           (* TRUE *)
+    b := 5 # 3;           (* TRUE - not equal *)
+    b := 10 >= 10;        (* TRUE *)
+    b := 7 <= 8;          (* TRUE *)
+    b := 9 > 8;           (* TRUE *)
+    
+    (* STRING *)
+    s := "Hello World!";
+    WRITELN(s);
+    WRITELN();             (* Empty line *)
 
-PROCEDURE RealToInt(x: REAL): INTEGER;
-BEGIN
-    RETURN x
-END RealToInt;
-
-PROCEDURE BoolToString(val: BOOLEAN): STRING;
-BEGIN
-    IF val THEN
-        RETURN "true"
-    ELSE
-        RETURN "false"
-    END
-END BoolToString;
-
-BEGIN
-    i := 5;
-    r := 6.7;
-    b := (i < 10);
-    s := "Result: ";
-
-    r := IntToReal(i);
-    i := RealToInt(r);
-    s := BoolToString(b);
-
-    WRITE(i);
-    WRITE(r);
-    WRITE(s)
-END TypesDemo.
+    (* Mixed output *)
+    WRITE("Value: ");
+    WRITELN(42);
+END BasicTypes.

@@ -50,12 +50,6 @@ public interface IOberon0Visitor<Result> : IParseTreeVisitor<Result> {
 	/// <return>The visitor result.</return>
 	Result VisitDeclarations([NotNull] Oberon0Parser.DeclarationsContext context);
 	/// <summary>
-	/// Visit a parse tree produced by <see cref="Oberon0Parser.constDecl"/>.
-	/// </summary>
-	/// <param name="context">The parse tree.</param>
-	/// <return>The visitor result.</return>
-	Result VisitConstDecl([NotNull] Oberon0Parser.ConstDeclContext context);
-	/// <summary>
 	/// Visit a parse tree produced by <see cref="Oberon0Parser.typeDecl"/>.
 	/// </summary>
 	/// <param name="context">The parse tree.</param>

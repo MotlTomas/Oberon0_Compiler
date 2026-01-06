@@ -1,36 +1,52 @@
-MODULE ArrayDemo;
-
-TYPE
-    IntMatrix = ARRAY 2, 2 OF INTEGER;
-
+(* Example 2: Control Flow - IF/ELSIF/ELSE and Boolean Logic *)
+MODULE ControlFlow;
 VAR
-    mat: IntMatrix;
-    res: IntMatrix;
+    x, grade: INTEGER;
+    isValid: BOOLEAN;
 
-PROCEDURE FillMatrix(VAR a: IntMatrix);
-VAR i, j: INTEGER;
 BEGIN
-    FOR i := 0 TO 1 DO
-        FOR j := 0 TO 1 DO
-            a[i, j] := i * 10 + j
+    x := 75;
+    
+    (* Simple IF-THEN-ELSE *)
+    IF x > 50 THEN
+        WRITELN("Greater than 50")
+    ELSE
+        WRITELN("Not greater")
+    END;
+    
+    (* IF-ELSIF-ELSE chain *)
+    grade := 85;
+    IF grade >= 90 THEN
+        WRITELN("A")
+    ELSIF grade >= 80 THEN
+        WRITELN("B")
+    ELSIF grade >= 70 THEN
+        WRITELN("C")
+    ELSIF grade >= 60 THEN
+        WRITELN("D")
+    ELSE
+        WRITELN("F")
+    END;
+    
+    (* Boolean operators: AND, OR, NOT *)
+    isValid := (x > 0) AND (x < 100);
+    IF isValid THEN
+        WRITELN("In range 1-99")
+    END;
+    
+    isValid := (x < 10) OR (x > 50);
+    IF isValid THEN
+        WRITELN("Outside 10-50")
+    END;
+    
+    IF NOT (x = 0) THEN
+        WRITELN("Non-zero")
+    END;
+    
+    (* Nested IF *)
+    IF x > 0 THEN
+        IF x < 100 THEN
+            WRITELN("Between 0 and 100")
         END
     END
-END FillMatrix;
-
-PROCEDURE SumMatrix(a: IntMatrix): INTEGER;
-VAR i, j, sum: INTEGER;
-BEGIN
-    sum := 0;
-    FOR i := 0 TO 1 DO
-        FOR j := 0 TO 1 DO
-            sum := sum + a[i, j]
-        END
-    END;
-    RETURN sum
-END SumMatrix;
-
-BEGIN
-    FillMatrix(mat);
-    res := mat;
-    WRITE(SumMatrix(res))
-END ArrayDemo.
+END ControlFlow.

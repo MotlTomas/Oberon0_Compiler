@@ -1,23 +1,95 @@
-MODULE NestedProcTest;
+(* Example 5: Arrays - TYPE aliases, Multi-dimensional, Array Parameters *)
+MODULE Arrays;
+
+TYPE
+    Vector = ARRAY 5 OF INTEGER;
+    Matrix = ARRAY 3, 3 OF INTEGER;
 
 VAR
-    result: INTEGER;
+    v: Vector;
+    m: Matrix;
+    copy: Vector;
+    i, j, sum: INTEGER;
 
-PROCEDURE Outer(a: INTEGER): INTEGER;
-VAR temp: INTEGER;
+(* Fill array via VAR parameter *)
+PROCEDURE FillVector(VAR arr: Vector);
+VAR k: INTEGER;
+BEGIN
+    FOR k := 0 TO 4 DO
+        arr[k] := k * 10
+    END
+END FillVector;
 
-    PROCEDURE Inner(b: INTEGER): INTEGER;
-    BEGIN
-        RETURN b * 3
-    END Inner;
+(* Sum array elements - pass by value *)
+FUNCTION SumVector(arr: Vector): INTEGER;
+VAR k, total: INTEGER;
+BEGIN
+    total := 0;
+    FOR k := 0 TO 4 DO
+        total := total + arr[k]
+    END;
+    RETURN total
+END SumVector;
+
+(* Initialize 2D matrix *)
+PROCEDURE FillMatrix(VAR mat: Matrix);
+VAR r, c: INTEGER;
+BEGIN
+    FOR r := 0 TO 2 DO
+        FOR c := 0 TO 2 DO
+            mat[r, c] := r * 3 + c + 1
+        END
+    END
+END FillMatrix;
+
+(* Sum diagonal of matrix *)
+FUNCTION DiagonalSum(mat: Matrix): INTEGER;
+VAR k, total: INTEGER;
+BEGIN
+    total := 0;
+    FOR k := 0 TO 2 DO
+        total := total + mat[k, k]
+    END;
+    RETURN total
+END DiagonalSum;
 
 BEGIN
-    temp := Inner(a);
-    RETURN temp + 10
-END Outer;
-
-BEGIN
-    result := Outer(1);
-    WRITELN("Result of Outer(5):");
-    WRITELN(result)
-END NestedProcTest.
+    (* 1D Array operations *)
+    FillVector(v);
+    WRITE("Vector: ");
+    FOR i := 0 TO 4 DO
+        WRITE(v[i]);
+        WRITE(" ")
+    END;
+    WRITELN();
+    
+    WRITE("Sum: ");
+    WRITELN(SumVector(v));    (* 0+10+20+30+40 = 100 *)
+    
+    (* Array assignment (copy) *)
+    copy := v;
+    copy[0] := 999;
+    WRITE("Original v[0]: ");
+    WRITELN(v[0]);            (* 0 - unchanged *)
+    WRITE("Copy[0]: ");
+    WRITELN(copy[0]);         (* 999 *)
+    
+    (* 2D Matrix operations *)
+    FillMatrix(m);
+    WRITELN("Matrix:");
+    FOR i := 0 TO 2 DO
+        FOR j := 0 TO 2 DO
+            WRITE(m[i, j]);
+            WRITE(" ")
+        END;
+        WRITELN()
+    END;
+    
+    WRITE("Diagonal sum: ");
+    WRITELN(DiagonalSum(m));  (* 1+5+9 = 15 *)
+    
+    (* Direct array element access *)
+    m[1, 1] := 100;
+    WRITE("Modified m[1,1]: ");
+    WRITELN(m[1, 1])          (* 100 *)
+END Arrays.

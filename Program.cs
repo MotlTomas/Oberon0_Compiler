@@ -77,11 +77,13 @@ class Program
                 codeVisitor.CreateMainFunction();
 
                 string llvmFile = Path.Combine(outputFolder, $"{baseName}.ll");
+                codeVisitor.WriteToFile(llvmFile);
+                Console.WriteLine($"\nLLVM IR created: {llvmFile}");
                 string exeFile = Path.Combine(outputFolder, baseName + GetExeExtension());
                 if (CompileToExecutable(llvmFile, exeFile))
-                    Console.WriteLine($"Executable created: {exeFile}");
+                    Console.WriteLine($"\nExecutable created: {exeFile}");
                 else
-                    Console.WriteLine("Compilation failed (clang required)");
+                    Console.WriteLine("Compilation failed!");
             }
             catch (Exception ex)
             {

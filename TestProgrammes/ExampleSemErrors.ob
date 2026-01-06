@@ -1,0 +1,68 @@
+MODULE SemanticErrors;
+
+VAR
+    i: INTEGER;
+    r: REAL;
+    b: BOOLEAN;
+    i: INTEGER;                (* ERROR: Variable redeclaration *)
+
+PROCEDURE TestProc(x: INTEGER);
+BEGIN
+    WRITELN(x)
+END TestProc;
+
+PROCEDURE TestProc();          (* ERROR: Procedure redeclaration *)
+BEGIN
+    WRITELN("duplicate")
+END TestProc;
+
+BEGIN
+    (* --- Type mismatch errors --- *)
+    i := 2.5;                  (* ERROR: Assigning REAL to INTEGER *)
+    b := 1;                    (* ERROR: Assigning INTEGER to BOOLEAN *)
+    r := "hello";              (* ERROR: Assigning STRING to REAL *)
+    
+    (* --- Condition type errors --- *)
+    IF i THEN                  (* ERROR: IF condition must be BOOLEAN *)
+        WRITELN("bad")
+    END;
+    
+    WHILE i DO                 (* ERROR: WHILE condition must be BOOLEAN *)
+        i := i - 1
+    END;
+    
+    REPEAT
+        i := i - 1
+    UNTIL i;                   (* ERROR: REPEAT condition must be BOOLEAN *)
+    
+    (* --- Undeclared variable --- *)
+    undeclared := 10;          (* ERROR: Assignment to undeclared variable *)
+    i := unknown + 5;          (* ERROR: Use of undeclared variable *)
+    
+    (* --- Undefined procedure --- *)
+    NonExistent();             (* ERROR: Call to undefined procedure *)
+    
+    (* --- Procedure argument errors --- *)
+    TestProc();                (* ERROR: Expected 1 argument, got 0 *)
+    TestProc(1, 2);            (* ERROR: Expected 1 argument, got 2 *)
+    TestProc(3.14);            (* ERROR: Argument type mismatch *)
+    
+    (* --- BREAK/CONTINUE outside loop --- *)
+    BREAK;                     (* ERROR: BREAK outside loop *)
+    CONTINUE;                  (* ERROR: CONTINUE outside loop *)
+    
+    (* --- CASE expression errors --- *)
+    CASE b OF                  (* ERROR: CASE expression must be INTEGER *)
+        1: WRITELN("one")
+    END;
+    
+    CASE i OF
+        TRUE: WRITELN("bad")   (* ERROR: CASE label must be INTEGER *)
+      | 1: WRITELN("one")
+    END;
+    
+    (* --- Type mismatch in expressions --- *)
+    i := i + r;                (* ERROR: Type mismatch INTEGER vs REAL *)
+    b := b AND i               (* ERROR: Type mismatch in AND *)
+    
+END SemanticErrors.

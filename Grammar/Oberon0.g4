@@ -10,14 +10,9 @@ module
     ;
 
 declarations
-    : ('CONST' (constDecl ';')*)?
-      ('TYPE' (typeDecl ';')*)?
+    : ('TYPE' (typeDecl ';')*)?
       ('VAR' (varDecl ';')*)?
       (procDecl ';')*
-    ;
-
-constDecl
-    : ID '=' expression
     ;
 
 typeDecl

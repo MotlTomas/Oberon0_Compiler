@@ -1,36 +1,104 @@
-MODULE PrintDemo4;
-
+(* Example 4: Procedures, Functions, Parameters, Recursion *)
+MODULE Functions;
 VAR
-  i: INTEGER;
-  r: REAL;
-  b: BOOLEAN;
-  s: STRING;
+    a, b, result: INTEGER;
+    r: REAL;
+
+(* Simple procedure - no params, no return *)
+PROCEDURE PrintHeader();
+BEGIN
+    WRITELN("=== Function Demo ===")
+END PrintHeader;
+
+(* Function with return value *)
+FUNCTION Square(x: INTEGER): INTEGER;
+BEGIN
+    RETURN x * x
+END Square;
+
+(* Function with multiple parameters *)
+FUNCTION Add(x, y: INTEGER): INTEGER;
+BEGIN
+    RETURN x + y
+END Add;
+
+(* VAR parameter - pass by reference *)
+PROCEDURE Swap(VAR x, y: INTEGER);
+VAR temp: INTEGER;
+BEGIN
+    temp := x;
+    x := y;
+    y := temp
+END Swap;
+
+(* Increment via VAR param *)
+PROCEDURE Increment(VAR n: INTEGER);
+BEGIN
+    n := n + 1
+END Increment;
+
+(* Recursive function - factorial *)
+FUNCTION Factorial(n: INTEGER): INTEGER;
+BEGIN
+    IF n <= 1 THEN
+        RETURN 1
+    ELSE
+        RETURN n * Factorial(n - 1)
+    END
+END Factorial;
+
+(* Recursive Fibonacci *)
+FUNCTION Fib(n: INTEGER): INTEGER;
+BEGIN
+    IF n <= 1 THEN
+        RETURN n
+    ELSE
+        RETURN Fib(n - 1) + Fib(n - 2)
+    END
+END Fib;
+
+(* Function returning REAL *)
+FUNCTION Average(x, y: INTEGER): REAL;
+BEGIN
+    RETURN (x + y) / 2.0
+END Average;
 
 BEGIN
-  i := 42;
-  r := 2.71828;
-  b := TRUE;
-  s := "Hello, Oberon!";
-
-  WRITELN("=== Print Demo 4 ===");
-  WRITE("String: "); WRITELN(s);
-  WRITE("Integer: "); WRITELN(i);
-  WRITE("Real: "); WRITELN(r);
-  WRITE("Boolean: "); WRITELN(b);
-  WRITELN();
-
-  WRITE("Counting: ");
-  i := 1;
-  WHILE i <= 5 DO
-    WRITE(i); WRITE(" ");
-    i := i + 1
-  END;
-  WRITELN();
-
-  WRITELN("A few more lines:");
-  WRITELN("Line 1");
-  WRITELN("Line 2");
-  WRITELN("Line 3");
-
-  WRITELN("Done.");
-END PrintDemo4.
+    PrintHeader();
+    
+    (* Test Square *)
+    WRITE("Square(7) = ");
+    WRITELN(Square(7));       (* 49 *)
+    
+    (* Test Add *)
+    WRITE("Add(3, 4) = ");
+    WRITELN(Add(3, 4));       (* 7 *)
+    
+    (* Test Swap with VAR params *)
+    a := 10;
+    b := 20;
+    WRITE("Before swap: ");
+    WRITE(a); WRITE(" "); WRITELN(b);
+    Swap(a, b);
+    WRITE("After swap: ");
+    WRITE(a); WRITE(" "); WRITELN(b);
+    
+    (* Test Increment *)
+    result := 5;
+    Increment(result);
+    WRITE("After increment: ");
+    WRITELN(result);          (* 6 *)
+    
+    (* Test Factorial *)
+    WRITE("5! = ");
+    WRITELN(Factorial(5));    (* 120 *)
+    
+    (* Test Fibonacci *)
+    WRITE("Fib(10) = ");
+    WRITELN(Fib(10));         (* 55 *)
+    
+    (* Test Average *)
+    WRITE("Average(7, 13) = ");
+    r := Average(7, 13);
+    WRITELN(r)                (* 10.0 *)
+END Functions.

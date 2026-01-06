@@ -1,0 +1,55 @@
+(* Example 6: CASE/OF Statement with Multiple Labels *)
+MODULE CaseSwitch;
+VAR
+    day, month, code: INTEGER;
+
+BEGIN
+    (* CASE with single labels *)
+    day := 3;
+    WRITE("Day 3 is: ");
+    CASE day OF
+        1: WRITELN("Monday")
+      | 2: WRITELN("Tuesday")
+      | 3: WRITELN("Wednesday")
+      | 4: WRITELN("Thursday")
+      | 5: WRITELN("Friday")
+      | 6: WRITELN("Saturday")
+      | 7: WRITELN("Sunday")
+    ELSE
+        WRITELN("Invalid day")
+    END;
+    
+    (* CASE with multiple labels per branch *)
+    month := 7;
+    WRITE("Month 7 has: ");
+    CASE month OF
+        1, 3, 5, 7, 8, 10, 12: WRITELN("31 days")
+      | 4, 6, 9, 11: WRITELN("30 days")
+      | 2: WRITELN("28 or 29 days")
+    ELSE
+        WRITELN("Invalid month")
+    END;
+    
+    (* CASE with ELSE fallback *)
+    code := 99;
+    WRITE("Code 99: ");
+    CASE code OF
+        0: WRITELN("Zero")
+      | 1: WRITELN("One")
+      | 2: WRITELN("Two")
+    ELSE
+        WRITELN("Unknown code")
+    END;
+    
+    (* CASE in a loop *)
+    WRITELN("Categories:");
+    FOR code := 0 TO 5 DO
+        WRITE(code);
+        WRITE(" -> ");
+        CASE code OF
+            0, 1: WRITELN("Low")
+          | 2, 3: WRITELN("Medium")
+          | 4, 5: WRITELN("High")
+        END
+    END
+END CaseSwitch.

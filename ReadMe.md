@@ -1,155 +1,37 @@
-# Oberon0 Compiler (C# + ANTLR4)
+﻿# Oberon0 Kompilátor
 
-A compact compiler and semantic analyzer for an Oberon0 language inspired subset, made with C# and ANTLR4.
+Kompilátor pro podmnožinu jazyka Oberon-0 v C# s využitím ANTLR4 a LLVM.
 
-## Features
+## Funkce
 
-- Parses an Oberon-like language with support for INTEGER, REAL, BOOLEAN, STRING, and user-defined array types.
-- Handles modular/global variables, local scopes, constants, function/procedure declarations, and nested procedures.
-- Performs semantic checks:
-  - Redeclaration of variables, procedures, constants
-  - Variable lookup with nesting support
-  - Type safety for assignments and procedure calls
-  - Verification of array element access and multidimensional arrays
-- Uses **Visitor pattern** for tree traversal (ANTLR4)
+- **Datové typy**: INTEGER, REAL, BOOLEAN, STRING, vícerozměrná pole, uživatelské typy
+- **Řídicí struktury**: IF/ELSIF/ELSE, WHILE, FOR/DOWNTO, REPEAT/UNTIL, CASE/OF, BREAK, CONTINUE
+- **Procedury a funkce**: parametry hodnotou i odkazem (VAR), rekurze, návratové hodnoty
+- **Sémantická analýza**: kontrola typů, redefinice, nedeklarované proměnné, argumenty procedur
+- **Generování kódu**: LLVM IR → exe soubor (clang)
 
-## Architecture
-
-This project uses the **ANTLR4 Visitor pattern** for abstract syntax tree traversal:
-
-### Visitor Pattern
-- **Approach**: Active, explicit traversal with return values
-- **Pros**: 
-  - Methods can return values (generic type)
-  - Full control over when/how to visit children
-  - Better for expression evaluation and type inference
-  - More functional programming style
-  - Ideal for code generation (LLVM IR)
-
-### Implementation Classes
+## Struktura projektu
 
 ```
-Semantics/
-??? SemanticVisitor.cs           - Extends Oberon0BaseVisitor<object>
-??? Oberon0VariableVisitor.cs    - Variable tracking with visitor
-??? SymbolTable.cs               - Symbol table for scoping
-??? Symbol.cs                    - Symbol representation
-
-CodeGeneration/
-??? LLVMCodeVisitor.cs          - LLVM IR generation with visitor
-??? SharedTypes.cs              - Shared data structures
-
-Program.cs                       - Main entry point (visitor-based)
-ParseResult.cs                   - Parse result data structure
+├── Grammar/Oberon0.g4          # Gramatika ANTLR4
+├── Generated/                  # Vygenerované soubory (lexer, parser, visitor)
+├── SemanticAnalysis/           # Sémantický analyzátor
+├── CodeGeneration/             # Generátor LLVM IR
+├── TestProgrammes/             # Testovací programy (.ob)
+└── Output/                     # Výstupní soubory (.ll, .exe)
 ```
 
-## Generating C# Files from G4 Grammar
-
-To generate parser/lexer/visitor C# targets from the `.g4` grammar file, run:
-
-    java -jar Tools/antlr-4.13.2-complete.jar -Dlanguage=CSharp -no-listener -visitor -o Generated Grammar/Oberon0.g4
-
-- Ensure grammar files are referenced correctly (e.g., `Grammar/Oberon0.g4`)
-- The generated `.cs` files will appear in the `Generated` folder
-- ANTLR4 generates both Listener and Visitor base classes (we use Visitor)
-
-## Example: Visitor Pattern Usage
-
-### Semantic Analysis
-```csharp
-// Visit returns values and allows explicit control
-public override object VisitVarDecl([NotNull] Oberon0Parser.VarDeclContext context)
-{
-    string typeName = context.type().GetText();
-    foreach (var id in context.identList().ID())
-    {
-        string varName = id.GetText();
-        if (Lookup(varName) != null)
-            Errors.Add($"Variable redeclaration: {varName}");
-        else
-            scopes[^1].Add(new Symbol(varName, SymbolKind.Variable, typeName));
-    }
-    
-    return null;
-}
-```
-
-### Code Generation
-```csharp
-// Visitor returns LLVM values for composition
-public override LLVMValueRef VisitExpression([NotNull] Oberon0Parser.ExpressionContext context)
-{
-    if (context.simpleExpression().Length == 1)
-    {
-        return Visit(context.simpleExpression(0));
-    }
-    else
-    {
-        // Explicit visits with returned values
-        var left = Visit(context.simpleExpression(0));
-        var right = Visit(context.simpleExpression(1));
-        string op = context.GetChild(1).GetText();
-        return BuildComparison(left, right, op);
-    }
-}
-```
-
-### Usage in Main Program
-```csharp
-// Explicit visitor creation and traversal
-var semanticVisitor = new SemanticVisitor();
-semanticVisitor.Visit(tree);
-
-var codeVisitor = new LLVMCodeVisitor(moduleName);
-codeVisitor.Visit(tree);
-```
-
-## Building and Running
+## Generování parseru z gramatiky
 
 ```bash
-# Build the project
-dotnet build
+java -jar Tools/antlr-4.13.2-complete.jar -Dlanguage=CSharp -no-listener -visitor -o Generated Grammar/Oberon0.g4
+```
 
-# Run the compiler
+## Build a spuštění
+
+```bash
+dotnet build
 dotnet run
 ```
 
-The compiler will:
-1. Parse all `.ob` files in the `TestProgrammes` folder
-2. Perform semantic analysis using visitor pattern
-3. Generate LLVM IR code
-4. Compile to native executable (if clang is available)
-
-## Why Visitor Pattern?
-
-The Visitor pattern is particularly well-suited for this compiler because:
-
-1. **Expression Evaluation**: Methods can return computed values (e.g., `LLVMValueRef`)
-2. **Code Generation**: Natural composition of LLVM instructions
-3. **Type Safety**: Generic return types provide compile-time guarantees
-4. **Control Flow**: Explicit traversal allows precise control over visitation order
-5. **Functional Style**: Encourages pure functions and value composition
-
-## Project Structure
-
-```
-Oberon0_Compiler/
-??? Grammar/
-?   ??? Oberon0.g4              # ANTLR4 grammar definition
-??? Generated/                   # Auto-generated by ANTLR4
-?   ??? Oberon0Lexer.cs
-?   ??? Oberon0Parser.cs
-?   ??? Oberon0BaseVisitor.cs
-?   ??? Oberon0Visitor.cs
-??? Semantics/                   # Semantic analysis (Visitor)
-?   ??? SemanticVisitor.cs
-?   ??? Oberon0VariableVisitor.cs
-?   ??? SymbolTable.cs
-?   ??? Symbol.cs
-??? CodeGeneration/              # LLVM IR generation (Visitor)
-?   ??? LLVMCodeVisitor.cs
-?   ??? SharedTypes.cs
-??? TestProgrammes/              # Test Oberon programs
-??? Output/                      # Generated LLVM IR and executables
-??? Program.cs                   # Main entry point
-??? ReadMe.md
+Kompilátor zpracuje všechny `.ob` soubory ve složce `TestProgrammes`, provede sémantickou analýzu a vygeneruje LLVM IR. Pokud je dostupný clang, zkompiluje výstup do spustitelného souboru.
