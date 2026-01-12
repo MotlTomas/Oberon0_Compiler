@@ -1,4 +1,4 @@
-(* Example 5: Arrays - TYPE aliases, Multi-dimensional, Array Parameters *)
+(* Example 5: Arrays - TYPE aliases, Multi-dimensional, Assignments *)
 MODULE Arrays;
 
 TYPE
@@ -66,13 +66,23 @@ BEGIN
     WRITE("Sum: ");
     WRITELN(SumVector(v));    (* 0+10+20+30+40 = 100 *)
     
-    (* Array assignment (copy) *)
-    copy := v;
-    copy[0] := 999;
-    WRITE("Original v[0]: ");
-    WRITELN(v[0]);            (* 0 - unchanged *)
-    WRITE("Copy[0]: ");
-    WRITELN(copy[0]);         (* 999 *)
+    (* Array assignment - entire array copy *)
+    copy := v;                (* Copy entire array *)
+    copy[0] := 999;           (* Modify the copy *)
+    
+    WRITE("Original v: ");
+    FOR i := 0 TO 4 DO
+        WRITE(v[i]);
+        WRITE(" ")
+    END;
+    WRITELN();                (* 0 10 20 30 40 - original *)
+    
+    WRITE("Copy:       ");
+    FOR i := 0 TO 4 DO
+        WRITE(copy[i]);
+        WRITE(" ")
+    END;
+    WRITELN();                (* 999 10 20 30 40 - first element changed *)
     
     (* 2D Matrix operations *)
     FillMatrix(m);

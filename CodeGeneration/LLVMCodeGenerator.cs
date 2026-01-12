@@ -16,6 +16,7 @@ namespace Compiler.CodeGeneration
             public LLVMTypeRef Type { get; set; }
             public bool IsGlobal { get; set; }
             public bool IsByRef { get; set; }
+            public bool IsCaptured { get; set; }  // True if this is a captured variable (needs double indirection)
         }
 
         // Represents a procedure/function declaration
@@ -27,6 +28,9 @@ namespace Compiler.CodeGeneration
             public LLVMTypeRef ReturnType { get; set; }
             public List<string> Parameters { get; set; } = new();
             public List<LLVMTypeRef> ParameterTypes { get; set; } = new();
+            // Captured variables from enclosing scopes (for closures)
+            public List<string> CapturedVarNames { get; set; } = new();
+            public List<Variable> CapturedVars { get; set; } = new();
         }
 
         #endregion
@@ -126,22 +130,129 @@ namespace Compiler.CodeGeneration
 
         #region Procedures
 
+        // Collect variable names used in a procedure body (for closure analysis)
+        private HashSet<string> CollectUsedVariables(Oberon0Parser.ProcBodyContext body)
+        {
+            var used = new HashSet<string>();
+            CollectUsedVariablesRecursive(body, used);
+            return used;
+        }
+
+        private void CollectUsedVariablesRecursive(Antlr4.Runtime.Tree.IParseTree node, HashSet<string> used)
+        {
+            if (node is Oberon0Parser.DesignatorContext designator)
+            {
+                used.Add(designator.ID().GetText());
+            }
+            
+            for (int i = 0; i < node.ChildCount; i++)
+            {
+                // Skip nested procedure declarations - they have their own scope
+                if (node.GetChild(i) is Oberon0Parser.ProcDeclContext)
+                    continue;
+                CollectUsedVariablesRecursive(node.GetChild(i), used);
+            }
+        }
+
+        // Get declared parameter names from procedure heading
+        private HashSet<string> GetDeclaredParameters(Oberon0Parser.ProcHeadingContext heading)
+        {
+            var declared = new HashSet<string>();
+            if (heading.formalParameters() != null)
+            {
+                foreach (var fp in heading.formalParameters().fpSection())
+                {
+                    foreach (var id in fp.identList().ID())
+                        declared.Add(id.GetText());
+                }
+            }
+            return declared;
+        }
+
+        // Get local variable names declared in procedure body
+        private HashSet<string> GetDeclaredLocals(Oberon0Parser.ProcBodyContext body)
+        {
+            var declared = new HashSet<string>();
+            if (body.declarations() != null)
+            {
+                foreach (var varDecl in body.declarations().varDecl())
+                {
+                    foreach (var id in varDecl.identList().ID())
+                        declared.Add(id.GetText());
+                }
+            }
+            return declared;
+        }
+
+        // Find variables that need to be captured from enclosing scopes
+        private List<Variable> FindCapturedVariables(Oberon0Parser.ProcDeclContext context)
+        {
+            var captured = new List<Variable>();
+            var heading = context.procHeading();
+            var body = context.procBody();
+
+            // Get all variables used in the procedure
+            var usedVars = CollectUsedVariables(body);
+            
+            // Get parameters and local declarations
+            var declaredParams = GetDeclaredParameters(heading);
+            var declaredLocals = GetDeclaredLocals(body);
+
+            // Find variables that are used but not declared locally or as parameters
+            foreach (var varName in usedVars)
+            {
+                if (declaredParams.Contains(varName) || declaredLocals.Contains(varName))
+                    continue;
+
+                // Look up in enclosing scopes (not global)
+                var variable = LookupVariableInEnclosingScopes(varName);
+                if (variable != null && !variable.IsGlobal)
+                {
+                    // Avoid duplicates
+                    if (!captured.Any(v => v.Name == varName))
+                        captured.Add(variable);
+                }
+            }
+
+            return captured;
+        }
+
+        // Look up variable only in enclosing scopes (exclude current scope being built)
+        private Variable? LookupVariableInEnclosingScopes(string name)
+        {
+            // Search from outer to inner, excluding the innermost scope
+            foreach (var scope in scopes)
+            {
+                if (scope.TryGetValue(name, out var variable))
+                    return variable;
+            }
+            return null;
+        }
+
         // Generate LLVM function from procedure declaration
         public override LLVMValueRef VisitProcDecl([NotNull] Oberon0Parser.ProcDeclContext context)
         {
             var heading = context.procHeading();
-            var (funcType, paramInfo) = CreateFunctionSignature(heading);
+            
+            // Analyze captured variables before creating the function
+            var capturedVars = FindCapturedVariables(context);
+            
+            var (funcType, paramInfo) = CreateFunctionSignature(heading, capturedVars);
             var func = module.AddFunction(heading.ID().GetText(), funcType);
 
-            EnterFunction(new Function
+            var newFunction = new Function
             {
                 Name = heading.ID().GetText(),
                 Value = func,
                 FunctionType = funcType,
                 ReturnType = funcType.ReturnType,
                 Parameters = paramInfo.names,
-                ParameterTypes = paramInfo.types
-            });
+                ParameterTypes = paramInfo.types,
+                CapturedVarNames = capturedVars.Select(v => v.Name).ToList(),
+                CapturedVars = capturedVars
+            };
+            
+            EnterFunction(newFunction);
 
             var entry = func.AppendBasicBlock("entry");
             builder.PositionAtEnd(entry);
@@ -149,9 +260,37 @@ namespace Compiler.CodeGeneration
             var localScope = new Dictionary<string, Variable>();
             scopes.Push(localScope);
 
-            for (int i = 0; i < paramInfo.names.Count; i++)
-                AddParameter(func.GetParam((uint)i), paramInfo.names[i], paramInfo.types[i],
-                           paramInfo.baseTypes[i], paramInfo.isByRef[i], localScope);
+            // Add captured variables as parameters
+            for (int i = 0; i < capturedVars.Count; i++)
+            {
+                var capturedVar = capturedVars[i];
+                var param = func.GetParam((uint)i);
+                var ptrType = LLVMTypeRef.CreatePointer(capturedVar.Type, 0);
+                var localPtrStorage = builder.BuildAlloca(ptrType, $"{capturedVar.Name}.ptr");
+                builder.BuildStore(param, localPtrStorage);
+                localScope[capturedVar.Name] = new Variable 
+                { 
+                    Name = capturedVar.Name, 
+                    Value = localPtrStorage,
+                    Type = capturedVar.Type, 
+                    IsByRef = true,
+                    IsCaptured = true,  // Mark as captured for double indirection
+                    IsGlobal = false
+                };
+            }
+
+            // Add regular parameters
+            int paramOffset = capturedVars.Count;
+            int regularParamCount = paramInfo.names.Count - capturedVars.Count;
+            for (int i = 0; i < regularParamCount; i++)
+            {
+                AddParameter(func.GetParam((uint)(paramOffset + i)), 
+                           paramInfo.names[paramOffset + i], 
+                           paramInfo.types[paramOffset + i],
+                           paramInfo.baseTypes[paramOffset + i], 
+                           paramInfo.isByRef[paramOffset + i], 
+                           localScope);
+            }
 
             Visit(context.procBody());
             EnsureReturn();
@@ -163,7 +302,7 @@ namespace Compiler.CodeGeneration
 
         // Build function type from procedure heading (handles VAR parameters as pointers)
         private (LLVMTypeRef funcType, (List<string> names, List<LLVMTypeRef> types, List<LLVMTypeRef> baseTypes, List<bool> isByRef))
-            CreateFunctionSignature(Oberon0Parser.ProcHeadingContext heading)
+            CreateFunctionSignature(Oberon0Parser.ProcHeadingContext heading, List<Variable> capturedVars)
         {
             var returnType = heading.type() != null ? GetLLVMType(heading.type()) : LLVMTypeRef.Void;
             var names = new List<string>();
@@ -171,6 +310,16 @@ namespace Compiler.CodeGeneration
             var baseTypes = new List<LLVMTypeRef>();
             var isByRef = new List<bool>();
 
+            // Add captured variables as pointer parameters
+            foreach (var captured in capturedVars)
+            {
+                names.Add(captured.Name);
+                types.Add(LLVMTypeRef.CreatePointer(captured.Type, 0));
+                baseTypes.Add(captured.Type);
+                isByRef.Add(true);
+            }
+
+            // Then add regular parameters
             if (heading.formalParameters() != null)
             {
                 foreach (var fp in heading.formalParameters().fpSection())
@@ -284,7 +433,17 @@ namespace Compiler.CodeGeneration
             }
 
             exprValue = ConvertIfNeeded(exprValue, variable.Type);
-            builder.BuildStore(exprValue, variable.Value);
+            
+            if (variable.IsCaptured)
+            {
+                var ptrType = LLVMTypeRef.CreatePointer(variable.Type, 0);
+                var ptr = builder.BuildLoad2(ptrType, variable.Value, $"{designator.ID().GetText()}.ptr.load");
+                builder.BuildStore(exprValue, ptr);
+            }
+            else
+            {
+                builder.BuildStore(exprValue, variable.Value);
+            }
             return default;
         }
 
@@ -364,13 +523,41 @@ namespace Compiler.CodeGeneration
         private List<LLVMValueRef> BuildCallArguments(Oberon0Parser.ExpressionListContext? exprList, Function func)
         {
             var args = new List<LLVMValueRef>();
+            
+            // First add captured variables (closure arguments)
+            foreach (var capturedVar in func.CapturedVars)
+            {
+                // Look up the captured variable in current scope and pass its address
+                var localVar = LookupVariable(capturedVar.Name);
+                if (localVar != null)
+                {
+                    // If this variable is itself captured, load the pointer first
+                    if (localVar.IsCaptured)
+                    {
+                        var ptrType = LLVMTypeRef.CreatePointer(localVar.Type, 0);
+                        var ptr = builder.BuildLoad2(ptrType, localVar.Value, $"{capturedVar.Name}.ptr.pass");
+                        args.Add(ptr);
+                    }
+                    else
+                    {
+                        args.Add(localVar.Value);
+                    }
+                }
+                else
+                {
+                    throw new Exception($"Captured variable not found: {capturedVar.Name}");
+                }
+            }
+            
             if (exprList == null) return args;
 
             var expressions = exprList.expression();
+            int capturedCount = func.CapturedVars.Count;
+            
             for (int i = 0; i < expressions.Length; i++)
             {
                 var expr = expressions[i];
-                var paramType = func.ParameterTypes[i];
+                var paramType = func.ParameterTypes[capturedCount + i];
 
                 if (paramType.Kind == LLVMTypeKind.LLVMPointerTypeKind)
                 {
@@ -790,9 +977,17 @@ namespace Compiler.CodeGeneration
                     ?? throw new Exception($"Variable not found: {varName}");
 
                 var selectors = designator.selector();
-                return selectors?.Length > 0
-                    ? LoadArrayElement(variable, selectors)
-                    : builder.BuildLoad2(variable.Type, variable.Value, varName);
+                if (selectors?.Length > 0)
+                    return LoadArrayElement(variable, selectors);
+                
+                if (variable.IsCaptured)
+                {
+                    var ptrType = LLVMTypeRef.CreatePointer(variable.Type, 0);
+                    var ptr = builder.BuildLoad2(ptrType, variable.Value, $"{varName}.ptr.load");
+                    return builder.BuildLoad2(variable.Type, ptr, varName);
+                }
+                
+                return builder.BuildLoad2(variable.Type, variable.Value, varName);
             }
 
             throw new Exception("Unknown factor type");
@@ -1054,7 +1249,8 @@ namespace Compiler.CodeGeneration
         // Search scopes from inner to outer
         private Variable? LookupVariable(string name)
         {
-            for (int i = scopes.Count - 1; i >= 0; i--)
+            // Stack.ElementAt(0) is the top (most recent push), iterate from 0 upward
+            for (int i = 0; i < scopes.Count; i++)
             {
                 if (scopes.ElementAt(i).TryGetValue(name, out var variable))
                     return variable;

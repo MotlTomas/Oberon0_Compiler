@@ -63,6 +63,22 @@ BEGIN
     RETURN (x + y) / 2.0
 END Average;
 
+(* Nested procedure - Inner accesses outerVar from Outer *)
+PROCEDURE Outer(x: INTEGER);
+VAR outerVar: INTEGER;
+    
+    PROCEDURE Inner();
+    BEGIN
+        outerVar := outerVar + 10
+    END Inner;
+    
+BEGIN
+    outerVar := x;
+    Inner();
+    WRITE("Nested proc result: ");
+    WRITELN(outerVar)
+END Outer;
+
 BEGIN
     PrintHeader();
     
@@ -100,5 +116,10 @@ BEGIN
     (* Test Average *)
     WRITE("Average(7, 13) = ");
     r := Average(7, 13);
-    WRITELN(r)                (* 10.0 *)
+    WRITELN(r);               (* 10.0 *)
+    
+    (* Test nested procedure *)
+    WRITE("Testing nested proc with Outer(5): ");
+    WRITELN();
+    Outer(15)                  (* Should print 25: 15 + 10 *)
 END Functions.

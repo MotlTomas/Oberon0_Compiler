@@ -17,24 +17,30 @@ target triple = "x86_64-pc-windows-msvc"
 @.str.4 = private unnamed_addr constant [6 x i8] c"Sum: \00", align 1
 @.fmt.5 = private unnamed_addr constant [3 x i8] c"%s\00", align 1
 @.fmt.6 = private unnamed_addr constant [6 x i8] c"%lld\0A\00", align 1
-@.str.7 = private unnamed_addr constant [16 x i8] c"Original v[0]: \00", align 1
+@.str.7 = private unnamed_addr constant [13 x i8] c"Original v: \00", align 1
 @.fmt.8 = private unnamed_addr constant [3 x i8] c"%s\00", align 1
-@.fmt.9 = private unnamed_addr constant [6 x i8] c"%lld\0A\00", align 1
-@.str.10 = private unnamed_addr constant [10 x i8] c"Copy[0]: \00", align 1
+@.fmt.9 = private unnamed_addr constant [5 x i8] c"%lld\00", align 1
+@.str.10 = private unnamed_addr constant [2 x i8] c" \00", align 1
 @.fmt.11 = private unnamed_addr constant [3 x i8] c"%s\00", align 1
-@.fmt.12 = private unnamed_addr constant [6 x i8] c"%lld\0A\00", align 1
-@.str.13 = private unnamed_addr constant [8 x i8] c"Matrix:\00", align 1
-@.fmt.14 = private unnamed_addr constant [4 x i8] c"%s\0A\00", align 1
+@.nl.12 = private unnamed_addr constant [2 x i8] c"\0A\00", align 1
+@.str.13 = private unnamed_addr constant [13 x i8] c"Copy:       \00", align 1
+@.fmt.14 = private unnamed_addr constant [3 x i8] c"%s\00", align 1
 @.fmt.15 = private unnamed_addr constant [5 x i8] c"%lld\00", align 1
 @.str.16 = private unnamed_addr constant [2 x i8] c" \00", align 1
 @.fmt.17 = private unnamed_addr constant [3 x i8] c"%s\00", align 1
 @.nl.18 = private unnamed_addr constant [2 x i8] c"\0A\00", align 1
-@.str.19 = private unnamed_addr constant [15 x i8] c"Diagonal sum: \00", align 1
-@.fmt.20 = private unnamed_addr constant [3 x i8] c"%s\00", align 1
-@.fmt.21 = private unnamed_addr constant [6 x i8] c"%lld\0A\00", align 1
-@.str.22 = private unnamed_addr constant [18 x i8] c"Modified m[1,1]: \00", align 1
+@.str.19 = private unnamed_addr constant [8 x i8] c"Matrix:\00", align 1
+@.fmt.20 = private unnamed_addr constant [4 x i8] c"%s\0A\00", align 1
+@.fmt.21 = private unnamed_addr constant [5 x i8] c"%lld\00", align 1
+@.str.22 = private unnamed_addr constant [2 x i8] c" \00", align 1
 @.fmt.23 = private unnamed_addr constant [3 x i8] c"%s\00", align 1
-@.fmt.24 = private unnamed_addr constant [6 x i8] c"%lld\0A\00", align 1
+@.nl.24 = private unnamed_addr constant [2 x i8] c"\0A\00", align 1
+@.str.25 = private unnamed_addr constant [15 x i8] c"Diagonal sum: \00", align 1
+@.fmt.26 = private unnamed_addr constant [3 x i8] c"%s\00", align 1
+@.fmt.27 = private unnamed_addr constant [6 x i8] c"%lld\0A\00", align 1
+@.str.28 = private unnamed_addr constant [18 x i8] c"Modified m[1,1]: \00", align 1
+@.fmt.29 = private unnamed_addr constant [3 x i8] c"%s\00", align 1
+@.fmt.30 = private unnamed_addr constant [6 x i8] c"%lld\0A\00", align 1
 
 declare i32 @printf(i8*, ...)
 
@@ -222,65 +228,109 @@ for.end:                                          ; preds = %for.cond
   %v = load [5 x i64], [5 x i64]* @v
   %7 = call i8* @memcpy(i8* bitcast ([5 x i64]* @copy to i8*), i8* bitcast ([5 x i64]* @v to i8*), i64 40)
   store i64 999, i64* getelementptr inbounds ([5 x i64], [5 x i64]* @copy, i64 0, i64 0)
-  %8 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.8, i32 0, i32 0), i8* getelementptr inbounds ([16 x i8], [16 x i8]* @.str.7, i32 0, i32 0))
-  %elem4 = load i64, i64* getelementptr inbounds ([5 x i64], [5 x i64]* @v, i64 0, i64 0)
-  %9 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.fmt.9, i32 0, i32 0), i64 %elem4)
-  %10 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.11, i32 0, i32 0), i8* getelementptr inbounds ([10 x i8], [10 x i8]* @.str.10, i32 0, i32 0))
-  %elem5 = load i64, i64* getelementptr inbounds ([5 x i64], [5 x i64]* @copy, i64 0, i64 0)
-  %11 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.fmt.12, i32 0, i32 0), i64 %elem5)
-  call void @FillMatrix([3 x [3 x i64]]* @m)
-  %12 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.fmt.14, i32 0, i32 0), i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str.13, i32 0, i32 0))
+  %8 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.8, i32 0, i32 0), i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.7, i32 0, i32 0))
   store i64 0, i64* @i
-  br label %for.cond6
+  br label %for.cond4
 
-for.cond6:                                        ; preds = %for.inc8, %for.end
+for.cond4:                                        ; preds = %for.inc6, %for.end
+  %i8 = load i64, i64* @i
+  %for.cmp9 = icmp sle i64 %i8, 4
+  br i1 %for.cmp9, label %for.body5, label %for.end7
+
+for.body5:                                        ; preds = %for.cond4
   %i10 = load i64, i64* @i
-  %for.cmp11 = icmp sle i64 %i10, 2
-  br i1 %for.cmp11, label %for.body7, label %for.end9
+  %arrayidx11 = getelementptr inbounds [5 x i64], [5 x i64]* @v, i64 0, i64 %i10
+  %elem12 = load i64, i64* %arrayidx11
+  %9 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.fmt.9, i32 0, i32 0), i64 %elem12)
+  %10 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.11, i32 0, i32 0), i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.10, i32 0, i32 0))
+  br label %for.inc6
 
-for.body7:                                        ; preds = %for.cond6
+for.inc6:                                         ; preds = %for.body5
+  %i13 = load i64, i64* @i
+  %for.inc14 = add i64 %i13, 1
+  store i64 %for.inc14, i64* @i
+  br label %for.cond4
+
+for.end7:                                         ; preds = %for.cond4
+  %11 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.nl.12, i32 0, i32 0))
+  %12 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.14, i32 0, i32 0), i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.13, i32 0, i32 0))
+  store i64 0, i64* @i
+  br label %for.cond15
+
+for.cond15:                                       ; preds = %for.inc17, %for.end7
+  %i19 = load i64, i64* @i
+  %for.cmp20 = icmp sle i64 %i19, 4
+  br i1 %for.cmp20, label %for.body16, label %for.end18
+
+for.body16:                                       ; preds = %for.cond15
+  %i21 = load i64, i64* @i
+  %arrayidx22 = getelementptr inbounds [5 x i64], [5 x i64]* @copy, i64 0, i64 %i21
+  %elem23 = load i64, i64* %arrayidx22
+  %13 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.fmt.15, i32 0, i32 0), i64 %elem23)
+  %14 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.17, i32 0, i32 0), i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.16, i32 0, i32 0))
+  br label %for.inc17
+
+for.inc17:                                        ; preds = %for.body16
+  %i24 = load i64, i64* @i
+  %for.inc25 = add i64 %i24, 1
+  store i64 %for.inc25, i64* @i
+  br label %for.cond15
+
+for.end18:                                        ; preds = %for.cond15
+  %15 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.nl.18, i32 0, i32 0))
+  call void @FillMatrix([3 x [3 x i64]]* @m)
+  %16 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.fmt.20, i32 0, i32 0), i8* getelementptr inbounds ([8 x i8], [8 x i8]* @.str.19, i32 0, i32 0))
+  store i64 0, i64* @i
+  br label %for.cond26
+
+for.cond26:                                       ; preds = %for.inc28, %for.end18
+  %i30 = load i64, i64* @i
+  %for.cmp31 = icmp sle i64 %i30, 2
+  br i1 %for.cmp31, label %for.body27, label %for.end29
+
+for.body27:                                       ; preds = %for.cond26
   store i64 0, i64* @j
-  br label %for.cond12
+  br label %for.cond32
 
-for.inc8:                                         ; preds = %for.end15
-  %i23 = load i64, i64* @i
-  %for.inc24 = add i64 %i23, 1
-  store i64 %for.inc24, i64* @i
-  br label %for.cond6
+for.inc28:                                        ; preds = %for.end35
+  %i43 = load i64, i64* @i
+  %for.inc44 = add i64 %i43, 1
+  store i64 %for.inc44, i64* @i
+  br label %for.cond26
 
-for.end9:                                         ; preds = %for.cond6
-  %13 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.20, i32 0, i32 0), i8* getelementptr inbounds ([15 x i8], [15 x i8]* @.str.19, i32 0, i32 0))
-  %14 = call i64 @DiagonalSum([3 x [3 x i64]]* @m)
-  %15 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.fmt.21, i32 0, i32 0), i64 %14)
+for.end29:                                        ; preds = %for.cond26
+  %17 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.26, i32 0, i32 0), i8* getelementptr inbounds ([15 x i8], [15 x i8]* @.str.25, i32 0, i32 0))
+  %18 = call i64 @DiagonalSum([3 x [3 x i64]]* @m)
+  %19 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.fmt.27, i32 0, i32 0), i64 %18)
   store i64 100, i64* getelementptr inbounds ([3 x [3 x i64]], [3 x [3 x i64]]* @m, i64 0, i64 1, i64 1)
-  %16 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.23, i32 0, i32 0), i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str.22, i32 0, i32 0))
-  %elem25 = load i64, i64* getelementptr inbounds ([3 x [3 x i64]], [3 x [3 x i64]]* @m, i64 0, i64 1, i64 1)
-  %17 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.fmt.24, i32 0, i32 0), i64 %elem25)
+  %20 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.29, i32 0, i32 0), i8* getelementptr inbounds ([18 x i8], [18 x i8]* @.str.28, i32 0, i32 0))
+  %elem45 = load i64, i64* getelementptr inbounds ([3 x [3 x i64]], [3 x [3 x i64]]* @m, i64 0, i64 1, i64 1)
+  %21 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.fmt.30, i32 0, i32 0), i64 %elem45)
   ret i32 0
 
-for.cond12:                                       ; preds = %for.inc14, %for.body7
+for.cond32:                                       ; preds = %for.inc34, %for.body27
   %j = load i64, i64* @j
-  %for.cmp16 = icmp sle i64 %j, 2
-  br i1 %for.cmp16, label %for.body13, label %for.end15
+  %for.cmp36 = icmp sle i64 %j, 2
+  br i1 %for.cmp36, label %for.body33, label %for.end35
 
-for.body13:                                       ; preds = %for.cond12
-  %i17 = load i64, i64* @i
-  %j18 = load i64, i64* @j
-  %arrayidx19 = getelementptr inbounds [3 x [3 x i64]], [3 x [3 x i64]]* @m, i64 0, i64 %i17, i64 %j18
-  %elem20 = load i64, i64* %arrayidx19
-  %18 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.fmt.15, i32 0, i32 0), i64 %elem20)
-  %19 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.17, i32 0, i32 0), i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.16, i32 0, i32 0))
-  br label %for.inc14
+for.body33:                                       ; preds = %for.cond32
+  %i37 = load i64, i64* @i
+  %j38 = load i64, i64* @j
+  %arrayidx39 = getelementptr inbounds [3 x [3 x i64]], [3 x [3 x i64]]* @m, i64 0, i64 %i37, i64 %j38
+  %elem40 = load i64, i64* %arrayidx39
+  %22 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([5 x i8], [5 x i8]* @.fmt.21, i32 0, i32 0), i64 %elem40)
+  %23 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.fmt.23, i32 0, i32 0), i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.str.22, i32 0, i32 0))
+  br label %for.inc34
 
-for.inc14:                                        ; preds = %for.body13
-  %j21 = load i64, i64* @j
-  %for.inc22 = add i64 %j21, 1
-  store i64 %for.inc22, i64* @j
-  br label %for.cond12
+for.inc34:                                        ; preds = %for.body33
+  %j41 = load i64, i64* @j
+  %for.inc42 = add i64 %j41, 1
+  store i64 %for.inc42, i64* @j
+  br label %for.cond32
 
-for.end15:                                        ; preds = %for.cond12
-  %20 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.nl.18, i32 0, i32 0))
-  br label %for.inc8
+for.end35:                                        ; preds = %for.cond32
+  %24 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([2 x i8], [2 x i8]* @.nl.24, i32 0, i32 0))
+  br label %for.inc28
 }
 
 declare i8* @memcpy(i8*, i8*, i64)
